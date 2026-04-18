@@ -2129,11 +2129,11 @@ local rageHitboxDD = rageSection:Dropdown({
 })
 
 rageSection:Slider({
-    Name = "FOV (360 = Full Screen)",
+    Name = "FOV",
     Flag = "RageFOV",
     Min = 50,
     Max = 500,
-    Default = 360,
+    Default = 100,
     Callback = function(v)
         RageBot.FOV = v
         if RageBot.FOVCircle then
