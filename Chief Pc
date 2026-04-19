@@ -5,8 +5,8 @@ local Window = Library:Window({
     GradientTitle = {
         Enabled = true,
         Start = Color3.fromRGB(255, 255, 255),
-        Middle = Color3.fromRGB(0, 251, 255),
-        End = Color3.fromRGB(50, 135, 168),
+        Middle = Color3.fromRGB(251, 51, 55),
+        End = Color3.fromRGB(150, 35, 68),
         Speed = 1
     }
 })
