@@ -38,6 +38,7 @@ local visualFOVSection = visualPage:Section({Name = "FOV", Side = 2})
 -- ============ MOVEMENT PAGE SECTIONS ============
 local movementSection = movementPage:Section({Name = "Movement", Side = 1})
 local flySection = movementPage:Section({Name = "Fly", Side = 1})
+local noclipSection = movementPage:Section({Name = "Noclip", Side = 2})
 local spinSection = movementPage:Section({Name = "Spin Bot", Side = 2})
 
 local Players = game:GetService("Players")
@@ -314,35 +315,31 @@ local CFrameSpeed = {
     Holding = false
 }
 
--- BHop (Bunny Hop) - CORRIGIDO
+-- BHop (Bunny Hop)
 local BHop = {
     Enabled = false,
     LastJump = 0
 }
 
--- Fly (CFrame Fly)
-local Fly = {
+-- Fly System
+local FlySystem = {
     Enabled = false,
-    Speed = 3,
-    Flying = false,
-    ToggleKey = "X",
-    Keys = {
-        W = false,
-        A = false,
-        S = false,
-        D = false,
-        Space = false,
-        Shift = false
-    }
+    flying = false,
+    flySpeed = 1,
+    flyKey = "F",
+    flyKeyDown = nil,
+    flyKeyUp = nil,
+    flyConnection = nil,
+    bg = nil,
+    bv = nil
 }
 
--- Normal Fly
-local NormalFly = {
+-- Noclip System
+local Noclip = {
     Enabled = false,
-    Speed = 50,
-    Flying = false,
-    ToggleKey = "X",
-    BodyVelocity = nil
+    active = false,
+    toggleKey = "V",
+    noclipConnection = nil
 }
 
 -- Spin Bot
@@ -358,7 +355,7 @@ local WalkspeedNormal = {
     Speed = 50
 }
 
--- Jump Power - CORRIGIDO
+-- Jump Power
 local JumpPower = {
     Enabled = false,
     Power = 100
@@ -1195,6 +1192,209 @@ local fovLoop = nil
 local fullBrightLoop = nil
 local rainbowLoop = nil
 
+-- ============ FUNÇÕES DE MOVEMENTO ============
+
+-- Walkspeed Normal
+local function ApplyWalkspeedNormal()
+    local char = player.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = WalkspeedNormal.Speed
+    end
+end
+
+local function RemoveWalkspeedNormal()
+    local char = player.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = 16
+    end
+end
+
+-- Spin Bot
+local function StartSpinBot()
+    if not SpinBot.Enabled then return end
+    
+    local char = player.Character
+    if not char then return end
+    
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    SpinBot.LastAngle = (SpinBot.LastAngle or 0) + (SpinBot.Speed * (1/60))
+    if SpinBot.LastAngle >= 360 then
+        SpinBot.LastAngle = SpinBot.LastAngle - 360
+    end
+    
+    rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, math.rad(SpinBot.LastAngle), 0)
+end
+
+-- ============ SISTEMA DE VOO ============
+local function stopFly()
+    if not FlySystem.flying then return end
+    FlySystem.flying = false
+    
+    if FlySystem.flyKeyDown then FlySystem.flyKeyDown:Disconnect() end
+    if FlySystem.flyKeyUp then FlySystem.flyKeyUp:Disconnect() end
+    if FlySystem.flyConnection then FlySystem.flyConnection:Disconnect() end
+    
+    local char = player.Character
+    if char and char:FindFirstChildWhichIsA("Humanoid") then
+        char:FindFirstChildWhichIsA("Humanoid").PlatformStand = false
+    end
+    
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root then
+        if FlySystem.bg then FlySystem.bg:Destroy() end
+        if FlySystem.bv then FlySystem.bv:Destroy() end
+    end
+    
+    pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end)
+end
+
+local function startFly()
+    if FlySystem.flying then stopFly() end
+    
+    local char = player.Character
+    if not char then
+        player.CharacterAdded:Wait()
+        char = player.Character
+    end
+    
+    local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    
+    if not root or not humanoid then
+        return
+    end
+    
+    FlySystem.flying = true
+    
+    local CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+    local lastControl = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+    local speed = 0
+    
+    FlySystem.bg = Instance.new("BodyGyro")
+    FlySystem.bv = Instance.new("BodyVelocity")
+    FlySystem.bg.P = 9e4
+    FlySystem.bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    FlySystem.bg.Parent = root
+    FlySystem.bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    FlySystem.bv.Parent = root
+    
+    FlySystem.flyKeyDown = UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == Enum.KeyCode.W then CONTROL.F = FlySystem.flySpeed
+        elseif input.KeyCode == Enum.KeyCode.S then CONTROL.B = -FlySystem.flySpeed
+        elseif input.KeyCode == Enum.KeyCode.A then CONTROL.L = -FlySystem.flySpeed
+        elseif input.KeyCode == Enum.KeyCode.D then CONTROL.R = FlySystem.flySpeed
+        elseif input.KeyCode == Enum.KeyCode.E then CONTROL.Q = FlySystem.flySpeed * 2
+        elseif input.KeyCode == Enum.KeyCode.Q then CONTROL.E = -FlySystem.flySpeed * 2
+        end
+    end)
+    
+    FlySystem.flyKeyUp = UserInputService.InputEnded:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == Enum.KeyCode.W then CONTROL.F = 0
+        elseif input.KeyCode == Enum.KeyCode.S then CONTROL.B = 0
+        elseif input.KeyCode == Enum.KeyCode.A then CONTROL.L = 0
+        elseif input.KeyCode == Enum.KeyCode.D then CONTROL.R = 0
+        elseif input.KeyCode == Enum.KeyCode.E then CONTROL.Q = 0
+        elseif input.KeyCode == Enum.KeyCode.Q then CONTROL.E = 0
+        end
+    end)
+    
+    FlySystem.flyConnection = RunService.Heartbeat:Connect(function()
+        if not FlySystem.flying then return end
+        
+        local char = player.Character
+        if not char or not char.Parent then
+            stopFly()
+            return
+        end
+        
+        local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root or not humanoid then return end
+        
+        local camera = workspace.CurrentCamera
+        humanoid.PlatformStand = true
+        
+        if CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0 then
+            speed = 50
+        elseif speed ~= 0 then
+            speed = 0
+        end
+        
+        if (CONTROL.L + CONTROL.R) ~= 0 or (CONTROL.F + CONTROL.B) ~= 0 or (CONTROL.Q + CONTROL.E) ~= 0 then
+            FlySystem.bv.Velocity = ((camera.CFrame.LookVector * (CONTROL.F + CONTROL.B)) + 
+                          ((camera.CFrame * CFrame.new(CONTROL.L + CONTROL.R, (CONTROL.F + CONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - camera.CFrame.p)) * speed
+            lastControl = {F = CONTROL.F, B = CONTROL.B, L = CONTROL.L, R = CONTROL.R}
+        elseif speed ~= 0 then
+            FlySystem.bv.Velocity = ((camera.CFrame.LookVector * (lastControl.F + lastControl.B)) + 
+                          ((camera.CFrame * CFrame.new(lastControl.L + lastControl.R, (lastControl.F + lastControl.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - camera.CFrame.p)) * speed
+        else
+            FlySystem.bv.Velocity = Vector3.new(0, 0, 0)
+        end
+        
+        FlySystem.bg.CFrame = camera.CFrame
+    end)
+end
+
+-- ============ NOCLIP SYSTEM ============
+local function startNoclip()
+    if Noclip.active then return end
+    Noclip.active = true
+    
+    if Noclip.noclipConnection then
+        Noclip.noclipConnection:Disconnect()
+    end
+    
+    Noclip.noclipConnection = RunService.Stepped:Connect(function()
+        if not Noclip.Enabled or not Noclip.active then return end
+        
+        local char = player.Character
+        if not char then return end
+        
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+end
+
+local function stopNoclip()
+    if not Noclip.active then return end
+    Noclip.active = false
+    
+    if Noclip.noclipConnection then
+        Noclip.noclipConnection:Disconnect()
+        Noclip.noclipConnection = nil
+    end
+    
+    local char = player.Character
+    if char then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+end
+
+local function toggleNoclip()
+    if Noclip.active then
+        stopNoclip()
+    else
+        startNoclip()
+    end
+end
+
+-- ============ FUNÇÕES DE UTILIDADE ============
+
 local function GetMousePosition()
     local mousePos = UserInputService:GetMouseLocation()
     local inset = GuiService:GetGuiInset()
@@ -1732,7 +1932,7 @@ local function StartCFrameSpeed()
     end
 end
 
--- BHop CORRIGIDO
+-- BHop
 local function StartBHop()
     if not BHop.Enabled then return end
     
@@ -1749,147 +1949,24 @@ local function StartBHop()
     end
 end
 
--- CFrame Fly
-local function StartCFrameFly()
-    if not Fly.Enabled or not Fly.Flying then return end
-    
-    local char = player.Character
-    if not char then return end
-    
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-    
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = true
-    end
-    
-    local moveDir = Vector3.new()
-    local cameraCF = Camera.CFrame
-    
-    if Fly.Keys.W then moveDir = moveDir + cameraCF.LookVector end
-    if Fly.Keys.S then moveDir = moveDir - cameraCF.LookVector end
-    if Fly.Keys.A then moveDir = moveDir - cameraCF.RightVector end
-    if Fly.Keys.D then moveDir = moveDir + cameraCF.RightVector end
-    if Fly.Keys.Space then moveDir = moveDir + Vector3.new(0, 1, 0) end
-    if Fly.Keys.Shift then moveDir = moveDir - Vector3.new(0, 1, 0) end
-    
-    if moveDir.Magnitude > 0 then
-        rootPart.CFrame = rootPart.CFrame + (moveDir.Unit * Fly.Speed)
-    end
-end
-
--- Normal Fly
-local function StartNormalFly()
-    if not NormalFly.Enabled or not NormalFly.Flying then return end
-    
-    local char = player.Character
-    if not char then return end
-    
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-    
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = true
-    end
-    
-    if not NormalFly.BodyVelocity or not NormalFly.BodyVelocity.Parent then
-        NormalFly.BodyVelocity = Instance.new("BodyVelocity")
-        NormalFly.BodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
-    end
-    
-    NormalFly.BodyVelocity.Parent = rootPart
-    
-    local moveDirection = Vector3.new()
-    local cameraCF = Camera.CFrame
-    
-    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-        moveDirection = moveDirection + cameraCF.LookVector
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-        moveDirection = moveDirection - cameraCF.LookVector
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-        moveDirection = moveDirection - cameraCF.RightVector
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-        moveDirection = moveDirection + cameraCF.RightVector
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-        moveDirection = moveDirection + Vector3.new(0, 1, 0)
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-        moveDirection = moveDirection - Vector3.new(0, 1, 0)
-    end
-    
-    if moveDirection.Magnitude > 0 then
-        moveDirection = moveDirection.Unit
-        NormalFly.BodyVelocity.Velocity = moveDirection * NormalFly.Speed
-    else
-        NormalFly.BodyVelocity.Velocity = Vector3.new(0, 0, 0)
-    end
-end
-
-local function StopNormalFly()
-    if NormalFly.BodyVelocity then
-        NormalFly.BodyVelocity:Destroy()
-        NormalFly.BodyVelocity = nil
-    end
-    
-    local char = player.Character
-    if char then
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.PlatformStand = false
-        end
-    end
-end
-
--- Spin Bot
-local function StartSpinBot()
-    if not SpinBot.Enabled then return end
-    
-    local char = player.Character
-    if not char then return end
-    
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-    
-    SpinBot.LastAngle = (SpinBot.LastAngle + SpinBot.Speed * (1/60)) % 360
-    
-    local currentPos = rootPart.Position
-    local newCF = CFrame.new(currentPos) * CFrame.Angles(0, math.rad(SpinBot.LastAngle), 0)
-    rootPart.CFrame = newCF
-end
-
--- Walkspeed Normal
-local function ApplyWalkspeedNormal()
-    local char = player.Character
-    if not char then return end
-    
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        if WalkspeedNormal.Enabled then
-            humanoid.WalkSpeed = WalkspeedNormal.Speed
-        else
-            humanoid.WalkSpeed = 16
-        end
-    end
-end
-
--- Jump Power CORRIGIDO
+-- Jump Power
 local function ApplyJumpPower()
     local char = player.Character
     if not char then return end
     
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
-        if JumpPower.Enabled then
-            humanoid.JumpPower = JumpPower.Power
-        else
-            humanoid.JumpPower = 50
-        end
+        humanoid.JumpPower = JumpPower.Power
+    end
+end
+
+local function RemoveJumpPower()
+    local char = player.Character
+    if not char then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.JumpPower = 50
     end
 end
 
@@ -1997,7 +2074,7 @@ local aimModeDD = aimSection:Dropdown({
 local aimKeyDD = aimSection:Dropdown({
     Name = "Aim Key",
     Flag = "AimKey",
-    Items = {"MB1", "MB2", "MB3", "Q", "E", "F", "G"},
+    Items = {"MB1", "MB2", "MB3", "Q", "E", "F", "G", "X", "V", "C", "LeftShift", "LeftControl", "Space"},
     Default = "MB3",
     Callback = function(v)
         AimAssist.Key = v
@@ -2060,7 +2137,7 @@ triggerSection:Toggle({
 local toggleKeyDD = triggerSection:Dropdown({
     Name = "Toggle Key",
     Flag = "TriggerToggleKey",
-    Items = {"End", "PageUp", "PageDown"},
+    Items = {"End", "PageUp", "PageDown", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"},
     Default = "End",
     Callback = function(v)
         TriggerBot.ToggleKey = v
@@ -2155,7 +2232,7 @@ local magnetModeDD = magnetSection:Dropdown({
 local magnetKeyDD = magnetSection:Dropdown({
     Name = "Magnet Key",
     Flag = "MagnetKey",
-    Items = {"MB1", "MB2", "MB3", "Q", "E", "F", "G"},
+    Items = {"MB1", "MB2", "MB3", "Q", "E", "F", "G", "X", "V", "C", "LeftShift", "LeftControl", "Space"},
     Default = "MB1",
     Callback = function(v)
         MagnetAim.Key = v
@@ -2295,7 +2372,7 @@ local rageModeDD = rageSection:Dropdown({
 local rageKeyDD = rageSection:Dropdown({
     Name = "Aim Key",
     Flag = "RageKey",
-    Items = {"MB1", "MB2", "MB3", "Q", "E", "F", "G"},
+    Items = {"MB1", "MB2", "MB3", "Q", "E", "F", "G", "X", "V", "C", "LeftShift", "LeftControl", "Space"},
     Default = "MB2",
     Callback = function(v)
         RageBot.Key = v
@@ -2726,8 +2803,6 @@ chamsSection:Toggle({
     end
 })
 
--- ============ MOVEMENT PAGE UI ============
-
 -- Movement Section
 movementSection:Toggle({
     Name = "CFrame Speed",
@@ -2742,20 +2817,21 @@ movementSection:Toggle({
 })
 
 movementSection:Slider({
-    Name = "CFrame Speed Value",
+    Name = "Speed Multiplier",
     Flag = "CFrameSpeedValue",
     Min = 1,
-    Max = 20,
+    Max = 10,
     Default = 2,
+    Decimals = 1,
     Callback = function(v)
         CFrameSpeed.Speed = v
     end
 })
 
 local cframeSpeedKeyDD = movementSection:Dropdown({
-    Name = "CFrame Speed Key",
+    Name = "Activation Key",
     Flag = "CFrameSpeedKey",
-    Items = {"LeftShift", "LeftControl", "Q", "E", "F", "G"},
+    Items = {"LeftShift", "LeftControl", "Q", "E", "F", "G", "X", "V", "C", "Space"},
     Default = "LeftShift",
     Callback = function(v)
         CFrameSpeed.Key = v
@@ -2763,7 +2839,7 @@ local cframeSpeedKeyDD = movementSection:Dropdown({
 })
 
 movementSection:Toggle({
-    Name = "BHop (Bunny Hop)",
+    Name = "Bunny Hop",
     Default = false,
     Flag = "BHopEnabled",
     Callback = function(v)
@@ -2772,12 +2848,16 @@ movementSection:Toggle({
 })
 
 movementSection:Toggle({
-    Name = "Walkspeed Normal",
+    Name = "Speed Boost",
     Default = false,
     Flag = "WalkspeedNormalEnabled",
     Callback = function(v)
         WalkspeedNormal.Enabled = v
-        ApplyWalkspeedNormal()
+        if v then
+            ApplyWalkspeedNormal()
+        else
+            RemoveWalkspeedNormal()
+        end
     end
 })
 
@@ -2796,12 +2876,16 @@ movementSection:Slider({
 })
 
 movementSection:Toggle({
-    Name = "Jump Power",
+    Name = "Jump Boost",
     Default = false,
     Flag = "JumpPowerEnabled",
     Callback = function(v)
         JumpPower.Enabled = v
-        ApplyJumpPower()
+        if v then
+            ApplyJumpPower()
+        else
+            RemoveJumpPower()
+        end
     end
 })
 
@@ -2821,88 +2905,67 @@ movementSection:Slider({
 
 -- Fly Section
 flySection:Toggle({
-    Name = "CFrame Fly",
+    Name = "Enable Fly System",
     Default = false,
-    Flag = "CFrameFlyEnabled",
+    Flag = "FlyEnabled",
     Callback = function(v)
-        Fly.Enabled = v
-        if not v then
-            Fly.Flying = false
-            for k in pairs(Fly.Keys) do
-                Fly.Keys[k] = false
-            end
-            local char = player.Character
-            if char then
-                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.PlatformStand = false
-                end
-            end
+        FlySystem.Enabled = v
+        if not v and FlySystem.flying then
+            stopFly()
         end
     end
 })
 
 flySection:Slider({
-    Name = "CFrame Fly Speed",
-    Flag = "CFrameFlySpeed",
+    Name = "Fly Speed",
+    Flag = "FlySpeed",
     Min = 1,
-    Max = 50,
-    Default = 3,
+    Max = 10,
+    Default = 1,
     Callback = function(v)
-        Fly.Speed = v
+        FlySystem.flySpeed = v
     end
 })
 
-local flyToggleKeyDD = flySection:Dropdown({
-    Name = "CFrame Fly Toggle Key",
-    Flag = "CFrameFlyToggleKey",
-    Items = {"X", "V", "B", "F", "G", "H"},
-    Default = "X",
+local flyKeyDD = flySection:Dropdown({
+    Name = "Fly Toggle Key",
+    Flag = "FlyKey",
+    Items = {"F", "X", "V", "C", "G", "H", "B", "LeftControl", "LeftShift", "Space"},
+    Default = "F",
     Callback = function(v)
-        Fly.ToggleKey = v
+        FlySystem.flyKey = v
     end
 })
 
-flySection:Toggle({
-    Name = "Normal Fly (BodyVelocity)",
+-- Noclip Section
+noclipSection:Toggle({
+    Name = "Enable Noclip",
     Default = false,
-    Flag = "NormalFlyEnabled",
+    Flag = "NoclipEnabled",
     Callback = function(v)
-        NormalFly.Enabled = v
-        if not v and NormalFly.Flying then
-            NormalFly.Flying = false
-            StopNormalFly()
+        Noclip.Enabled = v
+        if not v and Noclip.active then
+            stopNoclip()
         end
     end
 })
 
-flySection:Slider({
-    Name = "Normal Fly Speed",
-    Flag = "NormalFlySpeed",
-    Min = 10,
-    Max = 300,
-    Default = 50,
+local noclipKeyDD = noclipSection:Dropdown({
+    Name = "Noclip Toggle Key",
+    Flag = "NoclipKey",
+    Items = {"V", "X", "C", "G", "H", "B", "LeftControl", "LeftShift", "Space"},
+    Default = "V",
     Callback = function(v)
-        NormalFly.Speed = v
+        Noclip.toggleKey = v
+        if Noclip.Enabled then
+            toggleNoclip()
+        end
     end
 })
-
-local normalFlyToggleKeyDD = flySection:Dropdown({
-    Name = "Normal Fly Toggle Key",
-    Flag = "NormalFlyToggleKey",
-    Items = {"X", "V", "B", "F", "G", "H"},
-    Default = "X",
-    Callback = function(v)
-        NormalFly.ToggleKey = v
-    end
-})
-
-flySection:Label("Fly Controls:", "Left")
-flySection:Label("WASD = Move | Space = Up | Shift/CTRL = Down", "Left")
 
 -- Spin Bot Section
 spinSection:Toggle({
-    Name = "Enable Spin Bot",
+    Name = "Spin Bot",
     Default = false,
     Flag = "SpinBotEnabled",
     Callback = function(v)
@@ -2914,7 +2977,7 @@ spinSection:Toggle({
 })
 
 spinSection:Slider({
-    Name = "Spin Speed (deg/s)",
+    Name = "Spin Speed",
     Flag = "SpinSpeed",
     Min = 90,
     Max = 3600,
@@ -2923,8 +2986,6 @@ spinSection:Slider({
         SpinBot.Speed = v
     end
 })
-
-spinSection:Label("Spin Bot funciona mesmo com ShiftLock ativado!", "Left")
 
 -- ============ SETTINGS ============
 local ThemesSection = settingsPage:Section({ Name = "Themes", Side = 1 })
@@ -3140,6 +3201,8 @@ do
     ConfigsSection:Button({Name = "Unload Script", Callback = function()
         StopHold()
         RemoveGhost()
+        stopFly()
+        stopNoclip()
         if MagnetAim.Circle then
             MagnetAim.Circle:Remove()
         end
@@ -3158,7 +3221,6 @@ do
         if rainbowLoop then
             rainbowLoop:Disconnect()
         end
-        StopNormalFly()
         for _, plr in pairs(Players:GetPlayers()) do
             if plr.Character then
                 RemoveChamsFromCharacter(plr.Character)
@@ -3182,34 +3244,51 @@ local function ToggleTrigger()
     end
 end
 
--- Inputs
+-- Fly Bind
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if FlySystem.Enabled and input.KeyCode.Name == FlySystem.flyKey then
+        if FlySystem.flying then
+            stopFly()
+        else
+            startFly()
+        end
+    end
+end)
+
+-- Noclip Bind
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if Noclip.Enabled and input.KeyCode.Name == Noclip.toggleKey then
+        toggleNoclip()
+    end
+end)
+
+-- Trigger Bot Bind
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     if TriggerBot.Enabled then
-        local keyPressed = input.KeyCode.Name
-        if keyPressed == TriggerBot.ToggleKey then
+        if input.KeyCode.Name == TriggerBot.ToggleKey then
             ToggleTrigger()
         end
     end
 end)
 
--- Aim Assist Inputs
+-- Aim Assist Bind (Hold)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not AimAssist.Enabled then return end
     
-    local keyPressed = input.KeyCode.Name
-    local mouseButton = input.UserInputType
-    
     local isKeyMatch = false
-    if AimAssist.Key == "MB1" and mouseButton == Enum.UserInputType.MouseButton1 then
+    
+    if AimAssist.Key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then
         isKeyMatch = true
-    elseif AimAssist.Key == "MB2" and mouseButton == Enum.UserInputType.MouseButton2 then
+    elseif AimAssist.Key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then
         isKeyMatch = true
-    elseif AimAssist.Key == "MB3" and mouseButton == Enum.UserInputType.MouseButton3 then
+    elseif AimAssist.Key == "MB3" and input.UserInputType == Enum.UserInputType.MouseButton3 then
         isKeyMatch = true
-    elseif keyPressed == AimAssist.Key then
+    elseif input.KeyCode.Name == AimAssist.Key then
         isKeyMatch = true
     end
     
@@ -3236,17 +3315,15 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if not AimAssist.Enabled then return end
     
     if AimAssist.Mode == "hold" then
-        local keyPressed = input.KeyCode.Name
-        local mouseButton = input.UserInputType
-        
         local isKeyMatch = false
-        if AimAssist.Key == "MB1" and mouseButton == Enum.UserInputType.MouseButton1 then
+        
+        if AimAssist.Key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then
             isKeyMatch = true
-        elseif AimAssist.Key == "MB2" and mouseButton == Enum.UserInputType.MouseButton2 then
+        elseif AimAssist.Key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then
             isKeyMatch = true
-        elseif AimAssist.Key == "MB3" and mouseButton == Enum.UserInputType.MouseButton3 then
+        elseif AimAssist.Key == "MB3" and input.UserInputType == Enum.UserInputType.MouseButton3 then
             isKeyMatch = true
-        elseif keyPressed == AimAssist.Key then
+        elseif input.KeyCode.Name == AimAssist.Key then
             isKeyMatch = true
         end
         
@@ -3256,22 +3333,20 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- Rage Bot Inputs
+-- Rage Bot Bind
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not RageBot.Enabled then return end
     
-    local keyPressed = input.KeyCode.Name
-    local mouseButton = input.UserInputType
-    
     local isKeyMatch = false
-    if RageBot.Key == "MB1" and mouseButton == Enum.UserInputType.MouseButton1 then
+    
+    if RageBot.Key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then
         isKeyMatch = true
-    elseif RageBot.Key == "MB2" and mouseButton == Enum.UserInputType.MouseButton2 then
+    elseif RageBot.Key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then
         isKeyMatch = true
-    elseif RageBot.Key == "MB3" and mouseButton == Enum.UserInputType.MouseButton3 then
+    elseif RageBot.Key == "MB3" and input.UserInputType == Enum.UserInputType.MouseButton3 then
         isKeyMatch = true
-    elseif keyPressed == RageBot.Key then
+    elseif input.KeyCode.Name == RageBot.Key then
         isKeyMatch = true
     end
     
@@ -3298,17 +3373,15 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if not RageBot.Enabled then return end
     
     if RageBot.Mode == "hold" then
-        local keyPressed = input.KeyCode.Name
-        local mouseButton = input.UserInputType
-        
         local isKeyMatch = false
-        if RageBot.Key == "MB1" and mouseButton == Enum.UserInputType.MouseButton1 then
+        
+        if RageBot.Key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then
             isKeyMatch = true
-        elseif RageBot.Key == "MB2" and mouseButton == Enum.UserInputType.MouseButton2 then
+        elseif RageBot.Key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then
             isKeyMatch = true
-        elseif RageBot.Key == "MB3" and mouseButton == Enum.UserInputType.MouseButton3 then
+        elseif RageBot.Key == "MB3" and input.UserInputType == Enum.UserInputType.MouseButton3 then
             isKeyMatch = true
-        elseif keyPressed == RageBot.Key then
+        elseif input.KeyCode.Name == RageBot.Key then
             isKeyMatch = true
         end
         
@@ -3318,13 +3391,12 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- CFrame Speed Input
+-- CFrame Speed Bind
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not CFrameSpeed.Enabled then return end
     
-    local keyPressed = input.KeyCode.Name
-    if keyPressed == CFrameSpeed.Key then
+    if input.KeyCode.Name == CFrameSpeed.Key then
         CFrameSpeed.Holding = true
     end
 end)
@@ -3333,72 +3405,12 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not CFrameSpeed.Enabled then return end
     
-    local keyPressed = input.KeyCode.Name
-    if keyPressed == CFrameSpeed.Key then
+    if input.KeyCode.Name == CFrameSpeed.Key then
         CFrameSpeed.Holding = false
     end
 end)
 
--- Fly Inputs para CFrame Fly
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if Fly.Enabled then
-        if input.KeyCode.Name == Fly.ToggleKey then
-            Fly.Flying = not Fly.Flying
-            if not Fly.Flying then
-                local char = player.Character
-                if char then
-                    local humanoid = char:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid.PlatformStand = false
-                    end
-                end
-                for k in pairs(Fly.Keys) do
-                    Fly.Keys[k] = false
-                end
-            end
-        end
-        
-        if Fly.Flying then
-            if input.KeyCode == Enum.KeyCode.W then Fly.Keys.W = true end
-            if input.KeyCode == Enum.KeyCode.A then Fly.Keys.A = true end
-            if input.KeyCode == Enum.KeyCode.S then Fly.Keys.S = true end
-            if input.KeyCode == Enum.KeyCode.D then Fly.Keys.D = true end
-            if input.KeyCode == Enum.KeyCode.Space then Fly.Keys.Space = true end
-            if input.KeyCode == Enum.KeyCode.LeftShift then Fly.Keys.Shift = true end
-        end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if Fly.Enabled and Fly.Flying then
-        if input.KeyCode == Enum.KeyCode.W then Fly.Keys.W = false end
-        if input.KeyCode == Enum.KeyCode.A then Fly.Keys.A = false end
-        if input.KeyCode == Enum.KeyCode.S then Fly.Keys.S = false end
-        if input.KeyCode == Enum.KeyCode.D then Fly.Keys.D = false end
-        if input.KeyCode == Enum.KeyCode.Space then Fly.Keys.Space = false end
-        if input.KeyCode == Enum.KeyCode.LeftShift then Fly.Keys.Shift = false end
-    end
-end)
-
--- Normal Fly Input
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if NormalFly.Enabled then
-        if input.KeyCode.Name == NormalFly.ToggleKey then
-            NormalFly.Flying = not NormalFly.Flying
-            if not NormalFly.Flying then
-                StopNormalFly()
-            end
-        end
-    end
-end)
-
--- BHop Input CORRIGIDO
+-- BHop Bind
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
@@ -3407,22 +3419,20 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Magnet Aim Inputs
+-- Magnet Aim Bind
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not MagnetAim.Enabled then return end
     
-    local keyPressed = input.KeyCode.Name
-    local mouseButton = input.UserInputType
-    
     local isKeyMatch = false
-    if MagnetAim.Key == "MB1" and mouseButton == Enum.UserInputType.MouseButton1 then
+    
+    if MagnetAim.Key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then
         isKeyMatch = true
-    elseif MagnetAim.Key == "MB2" and mouseButton == Enum.UserInputType.MouseButton2 then
+    elseif MagnetAim.Key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then
         isKeyMatch = true
-    elseif MagnetAim.Key == "MB3" and mouseButton == Enum.UserInputType.MouseButton3 then
+    elseif MagnetAim.Key == "MB3" and input.UserInputType == Enum.UserInputType.MouseButton3 then
         isKeyMatch = true
-    elseif keyPressed == MagnetAim.Key then
+    elseif input.KeyCode.Name == MagnetAim.Key then
         isKeyMatch = true
     end
     
@@ -3467,17 +3477,15 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     
     if MagnetAim.Mode ~= "hold" then return end
     
-    local keyPressed = input.KeyCode.Name
-    local mouseButton = input.UserInputType
-    
     local isKeyMatch = false
-    if MagnetAim.Key == "MB1" and mouseButton == Enum.UserInputType.MouseButton1 then
+    
+    if MagnetAim.Key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then
         isKeyMatch = true
-    elseif MagnetAim.Key == "MB2" and mouseButton == Enum.UserInputType.MouseButton2 then
+    elseif MagnetAim.Key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then
         isKeyMatch = true
-    elseif MagnetAim.Key == "MB3" and mouseButton == Enum.UserInputType.MouseButton3 then
+    elseif MagnetAim.Key == "MB3" and input.UserInputType == Enum.UserInputType.MouseButton3 then
         isKeyMatch = true
-    elseif keyPressed == MagnetAim.Key then
+    elseif input.KeyCode.Name == MagnetAim.Key then
         isKeyMatch = true
     end
     
@@ -3564,14 +3572,9 @@ RunService.RenderStepped:Connect(function()
         StartCFrameSpeed()
     end
     
-    -- CFrame Fly
-    if Fly.Enabled and Fly.Flying then
-        StartCFrameFly()
-    end
-    
-    -- Normal Fly
-    if NormalFly.Enabled and NormalFly.Flying then
-        StartNormalFly()
+    -- BHop
+    if BHop.Enabled then
+        StartBHop()
     end
     
     -- Spin Bot
