@@ -3594,4 +3594,4 @@ player.CharacterAdded:Connect(function(char)
     end
 end)
 
-Library:Notification("CHIEF loaded!", 3, Color3.fromRGB(250, 255, 0), {"11955846432", Color3.fromRGB(149, 255, 139)})
+Library:Notification("CHIEF loaded!", 3, Color3.fromRGB(250, 255, 0), {"11955846432", Color3.fromRGB(251, 51, 55)})
