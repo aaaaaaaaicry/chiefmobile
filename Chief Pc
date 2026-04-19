@@ -2742,7 +2742,7 @@ do
         Watermark:SetVisibility(Value)
     end})
 
-    ConfigsSection:Toggle({Name = "Keybind List", Flag = "Keybind List", Default = false, Callback = function(Value)
+    ConfigsSection:Toggle({Name = "Keybind List", Flag = "Keybind List", Default = true, Callback = function(Value)
         KeybindList:SetVisibility(Value)
     end})
 
