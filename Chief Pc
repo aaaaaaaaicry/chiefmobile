@@ -18,6 +18,7 @@ local legitPage = Window:Page({Name = "Legit", Columns = 2})
 local blatantPage = Window:Page({Name = "Blatant", Columns = 2})
 local worldPage = Window:Page({Name = "World", Columns = 2})
 local visualPage = Window:Page({Name = "Visual", Columns = 2})
+local movementPage = Window:Page({Name = "Movement", Columns = 2})
 local settingsPage = Window:Page({Name = "Settings", Columns = 2})
 
 local aimSection = legitPage:Section({Name = "Aim Assist", Side = 1})
@@ -25,7 +26,6 @@ local triggerSection = legitPage:Section({Name = "Trigger Bot", Side = 2})
 
 local magnetSection = blatantPage:Section({Name = "Magnet Aim", Side = 1})
 local rageSection = blatantPage:Section({Name = "Rage Bot", Side = 2})
--- HIGHLIGHT REMOVIDO DA ABA BLATANT
 
 local worldSection = worldPage:Section({Name = "World Settings", Side = 1})
 
@@ -34,6 +34,11 @@ local espColorsSection = visualPage:Section({Name = "ESP Colors", Side = 2})
 local espDistanceSection = visualPage:Section({Name = "ESP Distance", Side = 2})
 local chamsSection = visualPage:Section({Name = "Chams", Side = 1})
 local visualFOVSection = visualPage:Section({Name = "FOV", Side = 2})
+
+-- ============ MOVEMENT PAGE SECTIONS ============
+local movementSection = movementPage:Section({Name = "Movement", Side = 1})
+local flySection = movementPage:Section({Name = "Fly", Side = 1})
+local spinSection = movementPage:Section({Name = "Spin Bot", Side = 2})
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -61,7 +66,7 @@ local function GetMaterialEnum(matName)
     return Enum.Material[matName] or Enum.Material.Plastic
 end
 
--- ============ CHAMS NORMAL (COM TEXTURA E COR) ============
+-- ============ CHAMS ============
 local Chams = {
     Enabled = false,
     Material = "ForceField",
@@ -72,12 +77,10 @@ local Chams = {
     ChamsObjects = {}
 }
 
--- ============ MINI CHAMS (SEM TEXTURA - CORPO NORMAL) ============
 local MiniChams = {
     MiniChamsObjects = {}
 }
 
--- Aplica Chams normal
 local function ApplyChamsToCharacter(character)
     if not character or not Chams.Enabled then return end
     
@@ -114,7 +117,6 @@ local function ApplyChamsToCharacter(character)
     Chams.ChamsObjects[character] = chamsData
 end
 
--- Aplica Mini Chams (sem textura - corpo normal)
 local function ApplyMiniChamsToCharacter(character)
     if not character or not Chams.Enabled or not Chams.MiniMode then return end
     
@@ -138,7 +140,6 @@ local function ApplyMiniChamsToCharacter(character)
     MiniChams.MiniChamsObjects[character] = miniData
 end
 
--- Remove Chams normal
 local function RemoveChamsFromCharacter(character)
     local chamsData = Chams.ChamsObjects[character]
     if chamsData then
@@ -183,7 +184,6 @@ local function UpdateChamsTransparency()
     end
 end
 
--- Remove Mini Chams
 local function RemoveMiniChamsFromCharacter(character)
     local miniData = MiniChams.MiniChamsObjects[character]
     if miniData then
@@ -196,7 +196,6 @@ local function RemoveMiniChamsFromCharacter(character)
     end
 end
 
--- Atualiza todos os players
 local function RefreshAllEffects()
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
@@ -214,7 +213,6 @@ local function RefreshAllEffects()
     end
 end
 
--- Eventos de players
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function(character)
         task.wait(0.5)
@@ -244,16 +242,7 @@ local VisualFOV = {
     OriginalFOV = Camera.FieldOfView
 }
 
-local function UpdateVisualFOV()
-    if VisualFOV.Enabled then
-        Camera.FieldOfView = VisualFOV.Value
-    else
-        Camera.FieldOfView = VisualFOV.OriginalFOV
-    end
-end
-
 -- ============ AIM ASSIST ============
-
 local AimAssist = {
     Enabled = false,
     Key = "MB3",
@@ -297,7 +286,6 @@ local MagnetAim = {
     Hitbox = "Head"
 }
 
--- RAGE BOT MELHORADO - SUPER AGRESSIVO E GRUDADO
 local RageBot = {
     Enabled = false,
     Key = "MB2",
@@ -316,12 +304,68 @@ local RageBot = {
     Stabilizer = {x = 0, y = 0}
 }
 
--- HIGHLIGHT REMOVIDO COMPLETAMENTE
+-- ============ MOVEMENT FEATURES ============
 
+-- CFrame Speed
+local CFrameSpeed = {
+    Enabled = false,
+    Speed = 2,
+    Key = "LeftShift",
+    Holding = false
+}
+
+-- BHop (Bunny Hop) - CORRIGIDO
+local BHop = {
+    Enabled = false,
+    LastJump = 0
+}
+
+-- Fly (CFrame Fly)
+local Fly = {
+    Enabled = false,
+    Speed = 3,
+    Flying = false,
+    ToggleKey = "X",
+    Keys = {
+        W = false,
+        A = false,
+        S = false,
+        D = false,
+        Space = false,
+        Shift = false
+    }
+}
+
+-- Normal Fly
+local NormalFly = {
+    Enabled = false,
+    Speed = 50,
+    Flying = false,
+    ToggleKey = "X",
+    BodyVelocity = nil
+}
+
+-- Spin Bot
+local SpinBot = {
+    Enabled = false,
+    Speed = 360,
+    LastAngle = 0
+}
+
+-- Walkspeed Normal
+local WalkspeedNormal = {
+    Enabled = false,
+    Speed = 50
+}
+
+-- Jump Power - CORRIGIDO
+local JumpPower = {
+    Enabled = false,
+    Power = 100
+}
+
+-- ============ WORLD ============
 local World = {
-    FOVEnabled = false,
-    FOVValue = 70,
-    OriginalFOV = 70,
     FogEnabled = false,
     FogEnd = 1000,
     FogColor = Color3.fromRGB(128, 128, 128),
@@ -366,7 +410,7 @@ local numkey = NumberSequenceKeypoint.new
 
 local camera_esp = workspace.CurrentCamera
 
--- Bones corrigidas para funcionar com R6 e R15
+-- Bones
 local function GetBonesForCharacter(character)
     local bonesList = {}
     
@@ -977,12 +1021,19 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
         end
     end
 
-    local function DrawSkeleton(character, data)
+    local function DrawSkeleton(character, data, distance)
         if not character or not esp_flags["Enabled"] or not esp_flags["Skeletons"] then 
             if data then
                 HideDrawings(data)
             end
             return 
+        end
+        
+        if distance > esp_flags["MaxDistance"] then
+            if data then
+                HideDrawings(data)
+            end
+            return
         end
         
         local bonesList = GetBonesForCharacter(character)
@@ -1069,9 +1120,9 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
             local rootPart = humanoid.RootPart
             if not rootPart then continue end
             
-            DrawSkeleton(character, data)
-            
             local box_size, box_pos, on_screen, distance = esp:box_solve(rootPart)
+            
+            DrawSkeleton(character, data, distance)
             
             if distance > esp_flags["MaxDistance"] then
                 if objects.holder.Visible then
@@ -1143,19 +1194,6 @@ end)
 local fovLoop = nil
 local fullBrightLoop = nil
 local rainbowLoop = nil
-
-local rigType = "R15"
-local function DetectRig()
-    local char = player.Character
-    if char then
-        if char:FindFirstChild("UpperTorso") then
-            rigType = "R15"
-        elseif char:FindFirstChild("Torso") then
-            rigType = "R6"
-        end
-    end
-end
-DetectRig()
 
 local function GetMousePosition()
     local mousePos = UserInputService:GetMouseLocation()
@@ -1290,19 +1328,6 @@ local function GetAtmosphere()
     return Lighting:FindFirstChildOfClass("Atmosphere")
 end
 
-local function StartFOVLoop()
-    if fovLoop then
-        fovLoop:Disconnect()
-        fovLoop = nil
-    end
-    
-    if World.FOVEnabled then
-        fovLoop = RunService.RenderStepped:Connect(function()
-            Camera.FieldOfView = World.FOVValue
-        end)
-    end
-end
-
 local function SetFog(endDist, color)
     Lighting.FogEnd = endDist
     Lighting.FogColor = color
@@ -1407,18 +1432,6 @@ local function IsAlive(char)
     if not TriggerBot.AliveCheck then return true end
     local humanoid = char and char:FindFirstChildOfClass("Humanoid")
     return humanoid and humanoid.Health > 0
-end
-
-local function IsTargetValid(targetChar)
-    if not targetChar then return false end
-    if not IsAlive(targetChar) then return false end
-    
-    local plr = Players:GetPlayerFromCharacter(targetChar)
-    if plr and TriggerBot.TeamCheck and plr.Team == player.Team then
-        return false
-    end
-    
-    return true
 end
 
 local function GetHitboxPart(character, hitboxName)
@@ -1581,7 +1594,7 @@ local function UpdateLockedPart()
     end
 end
 
--- ============ RAGE BOT SUPER FORTE - GRUDADO E SEM TREMER ============
+-- RAGE BOT
 local function GetRageTargetInFOV()
     local mousePos = UserInputService:GetMouseLocation()
     local cameraPos = Camera.CFrame.Position
@@ -1657,7 +1670,6 @@ local function UpdateRageLockedPart()
     end
 end
 
--- VERSÃO SUPER FORTE - GRUDADO QUE NÃO TREME
 local function RageAimAtTarget()
     if not RageBot.LockedCharacter or not RageBot.LockedPart then return end
     
@@ -1687,29 +1699,203 @@ local function RageAimAtTarget()
     
     local mousePos = UserInputService:GetMouseLocation()
     
-    -- Calcula a diferença para o alvo
     local deltaX = screenPos.X - mousePos.X
     local deltaY = screenPos.Y - mousePos.Y
     
-    -- Se estiver muito perto, não precisa mover (evita micro-tremores)
     if math.abs(deltaX) < 0.8 and math.abs(deltaY) < 0.8 then
         return
     end
     
-    -- Aplica um pequeno fator de smoothing apenas para evitar tremor, mas ainda muito rápido
     local strength = 0.85
     local moveX = deltaX * strength
     local moveY = deltaY * strength
     
-    -- Move o mouse instantaneamente mas com estabilização
     if math.abs(moveX) > 0.1 or math.abs(moveY) > 0.1 then
         mousemoverel(moveX, moveY)
     end
 end
 
+-- ============ MOVEMENT FUNCTIONS ============
+
+-- CFrame Speed
+local function StartCFrameSpeed()
+    if not CFrameSpeed.Enabled or not CFrameSpeed.Holding then return end
+    
+    local char = player.Character
+    if not char then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    
+    if humanoid and rootPart and humanoid.MoveDirection.Magnitude > 0 then
+        rootPart.CFrame = rootPart.CFrame + (humanoid.MoveDirection * CFrameSpeed.Speed)
+    end
+end
+
+-- BHop CORRIGIDO
+local function StartBHop()
+    if not BHop.Enabled then return end
+    
+    local char = player.Character
+    if not char then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    
+    local now = tick()
+    if now - BHop.LastJump > 0.2 and humanoid.FloorMaterial ~= Enum.Material.Air then
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        BHop.LastJump = now
+    end
+end
+
+-- CFrame Fly
+local function StartCFrameFly()
+    if not Fly.Enabled or not Fly.Flying then return end
+    
+    local char = player.Character
+    if not char then return end
+    
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.PlatformStand = true
+    end
+    
+    local moveDir = Vector3.new()
+    local cameraCF = Camera.CFrame
+    
+    if Fly.Keys.W then moveDir = moveDir + cameraCF.LookVector end
+    if Fly.Keys.S then moveDir = moveDir - cameraCF.LookVector end
+    if Fly.Keys.A then moveDir = moveDir - cameraCF.RightVector end
+    if Fly.Keys.D then moveDir = moveDir + cameraCF.RightVector end
+    if Fly.Keys.Space then moveDir = moveDir + Vector3.new(0, 1, 0) end
+    if Fly.Keys.Shift then moveDir = moveDir - Vector3.new(0, 1, 0) end
+    
+    if moveDir.Magnitude > 0 then
+        rootPart.CFrame = rootPart.CFrame + (moveDir.Unit * Fly.Speed)
+    end
+end
+
+-- Normal Fly
+local function StartNormalFly()
+    if not NormalFly.Enabled or not NormalFly.Flying then return end
+    
+    local char = player.Character
+    if not char then return end
+    
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.PlatformStand = true
+    end
+    
+    if not NormalFly.BodyVelocity or not NormalFly.BodyVelocity.Parent then
+        NormalFly.BodyVelocity = Instance.new("BodyVelocity")
+        NormalFly.BodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+    end
+    
+    NormalFly.BodyVelocity.Parent = rootPart
+    
+    local moveDirection = Vector3.new()
+    local cameraCF = Camera.CFrame
+    
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+        moveDirection = moveDirection + cameraCF.LookVector
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+        moveDirection = moveDirection - cameraCF.LookVector
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+        moveDirection = moveDirection - cameraCF.RightVector
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+        moveDirection = moveDirection + cameraCF.RightVector
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        moveDirection = moveDirection + Vector3.new(0, 1, 0)
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        moveDirection = moveDirection - Vector3.new(0, 1, 0)
+    end
+    
+    if moveDirection.Magnitude > 0 then
+        moveDirection = moveDirection.Unit
+        NormalFly.BodyVelocity.Velocity = moveDirection * NormalFly.Speed
+    else
+        NormalFly.BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    end
+end
+
+local function StopNormalFly()
+    if NormalFly.BodyVelocity then
+        NormalFly.BodyVelocity:Destroy()
+        NormalFly.BodyVelocity = nil
+    end
+    
+    local char = player.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = false
+        end
+    end
+end
+
+-- Spin Bot
+local function StartSpinBot()
+    if not SpinBot.Enabled then return end
+    
+    local char = player.Character
+    if not char then return end
+    
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    SpinBot.LastAngle = (SpinBot.LastAngle + SpinBot.Speed * (1/60)) % 360
+    
+    local currentPos = rootPart.Position
+    local newCF = CFrame.new(currentPos) * CFrame.Angles(0, math.rad(SpinBot.LastAngle), 0)
+    rootPart.CFrame = newCF
+end
+
+-- Walkspeed Normal
+local function ApplyWalkspeedNormal()
+    local char = player.Character
+    if not char then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        if WalkspeedNormal.Enabled then
+            humanoid.WalkSpeed = WalkspeedNormal.Speed
+        else
+            humanoid.WalkSpeed = 16
+        end
+    end
+end
+
+-- Jump Power CORRIGIDO
+local function ApplyJumpPower()
+    local char = player.Character
+    if not char then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        if JumpPower.Enabled then
+            humanoid.JumpPower = JumpPower.Power
+        else
+            humanoid.JumpPower = 50
+        end
+    end
+end
+
 -- ============ UI ELEMENTOS ============
 
--- ============ VISUAL FOV ============
+-- VISUAL FOV
 visualFOVSection:Toggle({
     Name = "Enable Visual FOV",
     Default = false,
@@ -1748,6 +1934,7 @@ visualFOVSection:Button({
     end
 })
 
+-- AIM ASSIST
 aimSection:Toggle({
     Name = "Enable Aim Assist",
     Default = false,
@@ -1856,6 +2043,7 @@ aimSection:Slider({
     end
 })
 
+-- TRIGGER BOT
 triggerSection:Toggle({
     Name = "Enable Trigger Bot",
     Default = false,
@@ -1932,8 +2120,7 @@ triggerSection:Toggle({
     end
 })
 
--- ============ MAGNET AIM ============
-
+-- MAGNET AIM
 magnetSection:Toggle({
     Name = "Enable Magnet Aim",
     Default = false,
@@ -2045,7 +2232,7 @@ magnetSection:Toggle({
     end
 })
 
--- ============ RAGE BOT (SUPER FORTE) ============
+-- RAGE BOT
 rageSection:Toggle({
     Name = "Enable Rage Bot",
     Default = false,
@@ -2160,8 +2347,7 @@ rageSection:Toggle({
     end
 })
 
--- ============ WORLD SETTINGS ============
-
+-- WORLD SETTINGS
 worldSection:Toggle({
     Name = "Enable Fog",
     Default = false,
@@ -2279,7 +2465,6 @@ worldSection:Toggle({
 worldSection:Button({
     Name = "Reset All World Settings",
     Callback = function()
-        World.FOVEnabled = false
         World.FogEnabled = false
         World.FullBrightEnabled = false
         World.TimeEnabled = false
@@ -2287,20 +2472,16 @@ worldSection:Button({
         World.RainbowEnabled = false
         World.NoShadowEnabled = false
         
-        StartFOVLoop()
         ResetFog()
         StartFullBrightLoop()
         ResetTime()
         SetNoFog(false)
         StopRainbow()
         SetNoShadow(false)
-        
-        Camera.FieldOfView = World.OriginalFOV
     end
 })
 
--- ============ ESP ============
-
+-- ESP
 espMainSection:Toggle({
     Name = "Enable ESP",
     Default = false,
@@ -2472,15 +2653,14 @@ espDistanceSection:Slider({
     Name = "Max Distance",
     Flag = "ESPMaxDistance",
     Min = 50,
-    Max = 10000,
+    Max = 1000,
     Default = 300,
     Callback = function(v)
         esp_flags["MaxDistance"] = v
     end
 })
 
--- ============ CHAMS ============
-
+-- CHAMS
 chamsSection:Toggle({
     Name = "Enable Chams",
     Default = false,
@@ -2546,8 +2726,207 @@ chamsSection:Toggle({
     end
 })
 
--- ============ SETTINGS ============
+-- ============ MOVEMENT PAGE UI ============
 
+-- Movement Section
+movementSection:Toggle({
+    Name = "CFrame Speed",
+    Default = false,
+    Flag = "CFrameSpeedEnabled",
+    Callback = function(v)
+        CFrameSpeed.Enabled = v
+        if not v then
+            CFrameSpeed.Holding = false
+        end
+    end
+})
+
+movementSection:Slider({
+    Name = "CFrame Speed Value",
+    Flag = "CFrameSpeedValue",
+    Min = 1,
+    Max = 20,
+    Default = 2,
+    Callback = function(v)
+        CFrameSpeed.Speed = v
+    end
+})
+
+local cframeSpeedKeyDD = movementSection:Dropdown({
+    Name = "CFrame Speed Key",
+    Flag = "CFrameSpeedKey",
+    Items = {"LeftShift", "LeftControl", "Q", "E", "F", "G"},
+    Default = "LeftShift",
+    Callback = function(v)
+        CFrameSpeed.Key = v
+    end
+})
+
+movementSection:Toggle({
+    Name = "BHop (Bunny Hop)",
+    Default = false,
+    Flag = "BHopEnabled",
+    Callback = function(v)
+        BHop.Enabled = v
+    end
+})
+
+movementSection:Toggle({
+    Name = "Walkspeed Normal",
+    Default = false,
+    Flag = "WalkspeedNormalEnabled",
+    Callback = function(v)
+        WalkspeedNormal.Enabled = v
+        ApplyWalkspeedNormal()
+    end
+})
+
+movementSection:Slider({
+    Name = "Walkspeed Value",
+    Flag = "WalkspeedNormalValue",
+    Min = 16,
+    Max = 250,
+    Default = 50,
+    Callback = function(v)
+        WalkspeedNormal.Speed = v
+        if WalkspeedNormal.Enabled then
+            ApplyWalkspeedNormal()
+        end
+    end
+})
+
+movementSection:Toggle({
+    Name = "Jump Power",
+    Default = false,
+    Flag = "JumpPowerEnabled",
+    Callback = function(v)
+        JumpPower.Enabled = v
+        ApplyJumpPower()
+    end
+})
+
+movementSection:Slider({
+    Name = "Jump Power Value",
+    Flag = "JumpPowerValue",
+    Min = 50,
+    Max = 500,
+    Default = 100,
+    Callback = function(v)
+        JumpPower.Power = v
+        if JumpPower.Enabled then
+            ApplyJumpPower()
+        end
+    end
+})
+
+-- Fly Section
+flySection:Toggle({
+    Name = "CFrame Fly",
+    Default = false,
+    Flag = "CFrameFlyEnabled",
+    Callback = function(v)
+        Fly.Enabled = v
+        if not v then
+            Fly.Flying = false
+            for k in pairs(Fly.Keys) do
+                Fly.Keys[k] = false
+            end
+            local char = player.Character
+            if char then
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.PlatformStand = false
+                end
+            end
+        end
+    end
+})
+
+flySection:Slider({
+    Name = "CFrame Fly Speed",
+    Flag = "CFrameFlySpeed",
+    Min = 1,
+    Max = 50,
+    Default = 3,
+    Callback = function(v)
+        Fly.Speed = v
+    end
+})
+
+local flyToggleKeyDD = flySection:Dropdown({
+    Name = "CFrame Fly Toggle Key",
+    Flag = "CFrameFlyToggleKey",
+    Items = {"X", "V", "B", "F", "G", "H"},
+    Default = "X",
+    Callback = function(v)
+        Fly.ToggleKey = v
+    end
+})
+
+flySection:Toggle({
+    Name = "Normal Fly (BodyVelocity)",
+    Default = false,
+    Flag = "NormalFlyEnabled",
+    Callback = function(v)
+        NormalFly.Enabled = v
+        if not v and NormalFly.Flying then
+            NormalFly.Flying = false
+            StopNormalFly()
+        end
+    end
+})
+
+flySection:Slider({
+    Name = "Normal Fly Speed",
+    Flag = "NormalFlySpeed",
+    Min = 10,
+    Max = 300,
+    Default = 50,
+    Callback = function(v)
+        NormalFly.Speed = v
+    end
+})
+
+local normalFlyToggleKeyDD = flySection:Dropdown({
+    Name = "Normal Fly Toggle Key",
+    Flag = "NormalFlyToggleKey",
+    Items = {"X", "V", "B", "F", "G", "H"},
+    Default = "X",
+    Callback = function(v)
+        NormalFly.ToggleKey = v
+    end
+})
+
+flySection:Label("Fly Controls:", "Left")
+flySection:Label("WASD = Move | Space = Up | Shift/CTRL = Down", "Left")
+
+-- Spin Bot Section
+spinSection:Toggle({
+    Name = "Enable Spin Bot",
+    Default = false,
+    Flag = "SpinBotEnabled",
+    Callback = function(v)
+        SpinBot.Enabled = v
+        if not v then
+            SpinBot.LastAngle = 0
+        end
+    end
+})
+
+spinSection:Slider({
+    Name = "Spin Speed (deg/s)",
+    Flag = "SpinSpeed",
+    Min = 90,
+    Max = 3600,
+    Default = 360,
+    Callback = function(v)
+        SpinBot.Speed = v
+    end
+})
+
+spinSection:Label("Spin Bot funciona mesmo com ShiftLock ativado!", "Left")
+
+-- ============ SETTINGS ============
 local ThemesSection = settingsPage:Section({ Name = "Themes", Side = 1 })
 
 do
@@ -2779,6 +3158,7 @@ do
         if rainbowLoop then
             rainbowLoop:Disconnect()
         end
+        StopNormalFly()
         for _, plr in pairs(Players:GetPlayers()) do
             if plr.Character then
                 RemoveChamsFromCharacter(plr.Character)
@@ -2802,6 +3182,7 @@ local function ToggleTrigger()
     end
 end
 
+-- Inputs
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
@@ -2813,9 +3194,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
+-- Aim Assist Inputs
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
     if not AimAssist.Enabled then return end
     
     local keyPressed = input.KeyCode.Name
@@ -2852,7 +3233,6 @@ end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
     if not AimAssist.Enabled then return end
     
     if AimAssist.Mode == "hold" then
@@ -2876,9 +3256,9 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
+-- Rage Bot Inputs
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
     if not RageBot.Enabled then return end
     
     local keyPressed = input.KeyCode.Name
@@ -2915,7 +3295,6 @@ end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
     if not RageBot.Enabled then return end
     
     if RageBot.Mode == "hold" then
@@ -2939,7 +3318,96 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- Magnet Aim
+-- CFrame Speed Input
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if not CFrameSpeed.Enabled then return end
+    
+    local keyPressed = input.KeyCode.Name
+    if keyPressed == CFrameSpeed.Key then
+        CFrameSpeed.Holding = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if not CFrameSpeed.Enabled then return end
+    
+    local keyPressed = input.KeyCode.Name
+    if keyPressed == CFrameSpeed.Key then
+        CFrameSpeed.Holding = false
+    end
+end)
+
+-- Fly Inputs para CFrame Fly
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if Fly.Enabled then
+        if input.KeyCode.Name == Fly.ToggleKey then
+            Fly.Flying = not Fly.Flying
+            if not Fly.Flying then
+                local char = player.Character
+                if char then
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid.PlatformStand = false
+                    end
+                end
+                for k in pairs(Fly.Keys) do
+                    Fly.Keys[k] = false
+                end
+            end
+        end
+        
+        if Fly.Flying then
+            if input.KeyCode == Enum.KeyCode.W then Fly.Keys.W = true end
+            if input.KeyCode == Enum.KeyCode.A then Fly.Keys.A = true end
+            if input.KeyCode == Enum.KeyCode.S then Fly.Keys.S = true end
+            if input.KeyCode == Enum.KeyCode.D then Fly.Keys.D = true end
+            if input.KeyCode == Enum.KeyCode.Space then Fly.Keys.Space = true end
+            if input.KeyCode == Enum.KeyCode.LeftShift then Fly.Keys.Shift = true end
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if Fly.Enabled and Fly.Flying then
+        if input.KeyCode == Enum.KeyCode.W then Fly.Keys.W = false end
+        if input.KeyCode == Enum.KeyCode.A then Fly.Keys.A = false end
+        if input.KeyCode == Enum.KeyCode.S then Fly.Keys.S = false end
+        if input.KeyCode == Enum.KeyCode.D then Fly.Keys.D = false end
+        if input.KeyCode == Enum.KeyCode.Space then Fly.Keys.Space = false end
+        if input.KeyCode == Enum.KeyCode.LeftShift then Fly.Keys.Shift = false end
+    end
+end)
+
+-- Normal Fly Input
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if NormalFly.Enabled then
+        if input.KeyCode.Name == NormalFly.ToggleKey then
+            NormalFly.Flying = not NormalFly.Flying
+            if not NormalFly.Flying then
+                StopNormalFly()
+            end
+        end
+    end
+end)
+
+-- BHop Input CORRIGIDO
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if BHop.Enabled and input.KeyCode == Enum.KeyCode.Space then
+        StartBHop()
+    end
+end)
+
+-- Magnet Aim Inputs
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not MagnetAim.Enabled then return end
@@ -3022,6 +3490,7 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
+-- Trigger Bot Loop
 task.spawn(function()
     while task.wait(0.03) do
         if TriggerBot.Enabled and TriggerBot.IsActive then
@@ -3044,6 +3513,7 @@ task.spawn(function()
     end
 end)
 
+-- Main Render Loop
 RunService.RenderStepped:Connect(function()
     if AimAssist.FOVCircle and AimAssist.ShowFOVCircle and AimAssist.Enabled then
         local mousePos = UserInputService:GetMouseLocation()
@@ -3068,20 +3538,6 @@ RunService.RenderStepped:Connect(function()
         MagnetAim.Circle.Position = Vector2.new(mousePos.X, mousePos.Y)
     end
     
-    if AimAssist.Enabled then
-        local shouldAim = false
-        
-        if AimAssist.Mode == "hold" then
-            shouldAim = AimAssist.LockedCharacter ~= nil
-        else
-            shouldAim = AimAssist.ToggleState
-        end
-        
-        if shouldAim then
-            AimAtTarget()
-        end
-    end
-    
     if RageBot.Enabled then
         local shouldRage = false
         
@@ -3101,6 +3557,37 @@ RunService.RenderStepped:Connect(function()
         if target then
             MagnetPullPlayer(target)
         end
+    end
+    
+    -- CFrame Speed
+    if CFrameSpeed.Enabled and CFrameSpeed.Holding then
+        StartCFrameSpeed()
+    end
+    
+    -- CFrame Fly
+    if Fly.Enabled and Fly.Flying then
+        StartCFrameFly()
+    end
+    
+    -- Normal Fly
+    if NormalFly.Enabled and NormalFly.Flying then
+        StartNormalFly()
+    end
+    
+    -- Spin Bot
+    if SpinBot.Enabled then
+        StartSpinBot()
+    end
+end)
+
+-- Character Added monitor
+player.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    if WalkspeedNormal.Enabled then
+        ApplyWalkspeedNormal()
+    end
+    if JumpPower.Enabled then
+        ApplyJumpPower()
     end
 end)
 
