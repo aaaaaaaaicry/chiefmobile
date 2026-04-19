@@ -11,7 +11,7 @@ local Window = Library:Window({
     }
 })
 
-local Watermark = Library:Watermark("CHIEF", {"77974153657891", Color3.fromRGB(149, 255, 139)})
+local Watermark = Library:Watermark("CHIEF", {"11955846432", Color3.fromRGB(149, 255, 139)})
 local KeybindList = Library:KeybindList()
 
 local legitPage = Window:Page({Name = "Legit", Columns = 2})
@@ -3594,4 +3594,4 @@ player.CharacterAdded:Connect(function(char)
     end
 end)
 
-Library:Notification("CHIEF loaded!", 3, Color3.fromRGB(250, 255, 0), {"77974153657891", Color3.fromRGB(149, 255, 139)})
+Library:Notification("CHIEF loaded!", 3, Color3.fromRGB(250, 255, 0), {"11955846432", Color3.fromRGB(149, 255, 139)})
