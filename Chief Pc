@@ -31,7 +31,6 @@ local worldSection = worldPage:Section({Name = "World Settings", Side = 1})
 
 local espMainSection = visualPage:Section({Name = "ESP Main", Side = 1})
 local espColorsSection = visualPage:Section({Name = "ESP Colors", Side = 2})
-local espTeamSection = visualPage:Section({Name = "ESP Team Settings", Side = 1})
 local espDistanceSection = visualPage:Section({Name = "ESP Distance", Side = 2})
 local chamsSection = visualPage:Section({Name = "Chams", Side = 1})
 local visualFOVSection = visualPage:Section({Name = "FOV", Side = 2})
@@ -51,165 +50,6 @@ local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
-
--- VARIÁVEIS PARA TEAM COLOR E MULTI SELECT
-local TeamSettings = {
-    SelectedTeams = {},
-    UseTeamColor = false,
-    TeamColors = {}
-}
-
--- FUNÇÃO PARA ATUALIZAR CORES DOS TIMES AUTOMATICAMENTE
-local function UpdateTeamColors()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Team then
-            local teamName = plr.Team.Name
-            if not TeamSettings.TeamColors[teamName] then
-                TeamSettings.TeamColors[teamName] = plr.Team.TeamColor.Color
-            end
-        end
-    end
-end
-
--- FUNÇÃO PARA FORÇAR ATUALIZAÇÃO DO ESP
-local function ForceESPRefresh()
-    task.wait(0.1)
-    UpdateTeamColors()
-    if esp and esp.refresh_elements then
-        esp.refresh_elements()
-    end
-    if teamMultiDropdown then
-        teamMultiDropdown:SetItems(GetTeamList())
-    end
-end
-
--- FUNÇÃO PARA PEGAR A COR DO TIME DO JOGADOR
-local function GetPlayerTeamColor(plr)
-    if not plr or not plr.Team then 
-        return Color3.fromRGB(255, 255, 255)
-    end
-    
-    local teamName = plr.Team.Name
-    if not TeamSettings.TeamColors[teamName] then
-        TeamSettings.TeamColors[teamName] = plr.Team.TeamColor.Color
-        if teamMultiDropdown then
-            teamMultiDropdown:SetItems(GetTeamList())
-        end
-    end
-    
-    return TeamSettings.TeamColors[teamName]
-end
-
--- FUNÇÃO PARA VERIFICAR SE O TIME ESTÁ SELECIONADO
-local function IsTeamSelected(plr)
-    if not plr or not plr.Team then 
-        return false
-    end
-    
-    if #TeamSettings.SelectedTeams == 0 then
-        return true
-    end
-    
-    local teamName = plr.Team.Name
-    if not TeamSettings.TeamColors[teamName] then
-        TeamSettings.TeamColors[teamName] = plr.Team.TeamColor.Color
-        if teamMultiDropdown then
-            teamMultiDropdown:SetItems(GetTeamList())
-        end
-    end
-    
-    for _, selected in pairs(TeamSettings.SelectedTeams) do
-        if selected == teamName then
-            return true
-        end
-    end
-    return false
-end
-
--- FUNÇÃO PARA VERIFICAR SE DEVE MOSTRAR NO ESP (COM VERIFICAÇÃO DE VIVO)
-local function ShouldShowInESP(plr)
-    if plr == player then return false end
-    
-    if plr.Character then
-        local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid and humanoid.Health <= 0 then
-            return false
-        end
-    end
-    
-    return IsTeamSelected(plr)
-end
-
--- FUNÇÃO PARA PEGAR LISTA DE TIMES
-local function GetTeamList()
-    local teams = {}
-    for teamName, _ in pairs(TeamSettings.TeamColors) do
-        table.insert(teams, teamName)
-    end
-    return teams
-end
-
--- MONITORAR QUANDO O PLAYER MORRE E RESPAWNA
-local function MonitorCharacter(plr)
-    if not plr then return end
-    
-    local function onCharacterAdded(character)
-        local humanoid = character:WaitForChild("Humanoid", 5)
-        if humanoid then
-            humanoid.Died:Connect(function()
-                task.wait(0.5)
-                ForceESPRefresh()
-            end)
-        end
-        
-        task.wait(0.2)
-        UpdateTeamColors()
-        if esp and esp.refresh_elements then
-            esp.refresh_elements()
-        end
-    end
-    
-    if plr.Character then
-        onCharacterAdded(plr.Character)
-    end
-    
-    plr.CharacterAdded:Connect(onCharacterAdded)
-end
-
--- Monitora TODOS os jogadores
-for _, plr in pairs(Players:GetPlayers()) do
-    if plr ~= player then
-        MonitorCharacter(plr)
-    end
-end
-
-Players.PlayerAdded:Connect(function(plr)
-    if plr ~= player then
-        MonitorCharacter(plr)
-    end
-    task.wait(0.5)
-    ForceESPRefresh()
-end)
-
-Players.PlayerRemoving:Connect(function()
-    task.wait(0.5)
-    ForceESPRefresh()
-end)
-
--- Atualiza cores a cada 2 segundos
-task.spawn(function()
-    while task.wait(2) do
-        if esp_flags and esp_flags["Enabled"] then
-            UpdateTeamColors()
-            if esp and esp.refresh_elements then
-                esp.refresh_elements()
-            end
-        end
-    end
-end)
-
-task.wait(1)
-UpdateTeamColors()
 
 local AllMaterials = {
     "Plastic", "Wood", "Slate", "Concrete", "Brick", "Neon", "Glass", 
@@ -426,6 +266,7 @@ local TriggerBot = {
     IsHolding = false
 }
 
+-- MAGNET AIM CORRIGIDO - SUPORTE A MÚLTIPLOS FANTASMAS
 local MagnetAim = {
     Enabled = false,
     Key = "MB1",
@@ -438,7 +279,7 @@ local MagnetAim = {
     Holding = false,
     TeamCheck = false,
     GhostMode = false,
-    CurrentGhostTargets = {},
+    CurrentGhostTargets = {},  -- MÚLTIPLOS alvos
     Hitbox = "Head"
 }
 
@@ -1106,15 +947,6 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
                 continue 
             end 
 
-            if not ShouldShowInESP(v) then
-                local path = esp[v.Name]
-                if path and path.objects and path.objects.holder then
-                    path.objects.holder.Visible = false
-                    HideDrawings(path)
-                end
-                continue
-            end
-
             local path = esp[v.Name]
             local objects = path and path.objects
             
@@ -1134,26 +966,8 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
             
             objects.holder.Parent = esp.screengui
 
-            if TeamSettings.UseTeamColor then
-                local teamColor = GetPlayerTeamColor(v)
-                objects[ "name" ].TextColor3 = teamColor
-                objects[ "box_color" ].Color = teamColor
-                for _, corner in objects[ "corners" ]:GetChildren() do
-                    if corner:FindFirstChild("Frame") then
-                        corner.Frame.BackgroundColor3 = teamColor
-                    end
-                end
-            else
-                objects[ "name" ].TextColor3 = esp_flags["Name_Color"].Color
-                objects[ "box_color" ].Color = esp_flags["Box_Color"].Color
-                for _, corner in objects[ "corners" ]:GetChildren() do
-                    if corner:FindFirstChild("Frame") then
-                        corner.Frame.BackgroundColor3 = esp_flags["Box_Color"].Color
-                    end
-                end
-            end
-            
             objects[ "name" ].Parent = esp_flags["Names"] and objects["holder"] or esp.cache
+            objects[ "name" ].TextColor3 = esp_flags["Name_Color"].Color
             
             local is_corner = esp_flags[ "Box_Type" ] == "Corner"
 
@@ -1166,6 +980,14 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
                 objects[ "box_handler" ].Parent = esp.cache
                 objects[ "box_outline" ].Parent = esp.cache
             end 
+            
+            objects[ "box_color" ].Color = esp_flags["Box_Color"].Color 
+
+            for _, corner in objects[ "corners" ]:GetChildren() do
+                if corner:FindFirstChild("Frame") then
+                    corner.Frame.BackgroundColor3 = esp_flags["Box_Color"].Color
+                end
+            end
 
             objects[ "healthbar_holder" ].Parent = esp_flags[ "Healthbar" ] and objects[ "holder" ] or esp.cache
             
@@ -1218,16 +1040,7 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
                     data.drawings[i].Visible = true
                     data.drawings[i].From = Vector2.new(originPos.X, originPos.Y)
                     data.drawings[i].To = Vector2.new(destPos.X, destPos.Y)
-                    if TeamSettings.UseTeamColor then
-                        local owner = Players:GetPlayerFromCharacter(character)
-                        if owner then
-                            data.drawings[i].Color = GetPlayerTeamColor(owner)
-                        else
-                            data.drawings[i].Color = esp_flags["Skeletons_Color"].Color
-                        end
-                    else
-                        data.drawings[i].Color = esp_flags["Skeletons_Color"].Color
-                    end
+                    data.drawings[i].Color = esp_flags["Skeletons_Color"].Color
                 else
                     data.drawings[i].Visible = false
                 end
@@ -1253,17 +1066,6 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
 
         for _, esp_player in players_service:GetPlayers() do 
             if esp_player == players_service.LocalPlayer then
-                continue
-            end
-            
-            if not ShouldShowInESP(esp_player) then
-                local data = esp[esp_player.Name]
-                if data then
-                    HideDrawings(data)
-                    if data.objects and data.objects.holder then
-                        data.objects.holder.Visible = false
-                    end
-                end
                 continue
             end
             
@@ -1579,6 +1381,7 @@ local function GetMousePosition()
     )
 end
 
+-- FUNÇÕES CORRIGIDAS DO GHOST MODE
 local function SetInvisible(char, state)
     if not char then return end
     
@@ -2186,7 +1989,6 @@ local function RemoveJumpPower()
     end
 end
 
--- VISUAL FOV SECTION
 visualFOVSection:Toggle({
     Name = "Enable Visual FOV",
     Default = false,
@@ -2225,7 +2027,6 @@ visualFOVSection:Button({
     end
 })
 
--- AIM ASSIST SECTION
 aimSection:Toggle({
     Name = "Enable Aim Assist",
     Default = false,
@@ -2334,7 +2135,6 @@ aimSection:Slider({
     end
 })
 
--- TRIGGER BOT SECTION
 triggerSection:Toggle({
     Name = "Enable Trigger Bot",
     Default = false,
@@ -2411,7 +2211,6 @@ triggerSection:Toggle({
     end
 })
 
--- MAGNET AIM SECTION
 magnetSection:Toggle({
     Name = "Enable Magnet Aim",
     Default = false,
@@ -2523,7 +2322,6 @@ magnetSection:Toggle({
     end
 })
 
--- RAGE BOT SECTION
 rageSection:Toggle({
     Name = "Enable Rage Bot",
     Default = false,
@@ -2638,7 +2436,6 @@ rageSection:Toggle({
     end
 })
 
--- WORLD SECTION
 worldSection:Toggle({
     Name = "Enable Fog",
     Default = false,
@@ -2772,7 +2569,6 @@ worldSection:Button({
     end
 })
 
--- ESP MAIN SECTION
 espMainSection:Toggle({
     Name = "Enable ESP",
     Default = false,
@@ -2863,7 +2659,6 @@ espMainSection:Toggle({
     end
 })
 
--- ESP COLORS SECTION
 local nameColorLabel = espColorsSection:Label("Name Color", "Left")
 nameColorLabel:Colorpicker({
     Name = "Name Color",
@@ -2941,41 +2736,6 @@ skeletonColorLabel:Colorpicker({
     end
 })
 
--- ESP TEAM SECTION
-espTeamSection:Toggle({
-    Name = "Use Team Colors (Buggy)",
-    Default = false,
-    Flag = "UseTeamColors",
-    Callback = function(v)
-        TeamSettings.UseTeamColor = v
-        esp.refresh_elements()
-    end
-})
-
--- MULTI DROPDOWN PARA ESCOLHER QUAIS TIMES APARECEM
-local teamMultiDropdown = espTeamSection:Dropdown({
-    Name = "Show Teams",
-    Flag = "ShowTeamsMulti",
-    Items = GetTeamList(),
-    Multi = true,
-    Default = {},
-    Callback = function(Value)
-        TeamSettings.SelectedTeams = Value
-        esp.refresh_elements()
-    end
-})
-
--- BOTÃO PARA ATUALIZAR A LISTA DE TIMES
-espTeamSection:Button({
-    Name = "Refresh Team List",
-    Callback = function()
-        UpdateTeamColors()
-        teamMultiDropdown:SetItems(GetTeamList())
-        Library:Notification("Teams refreshed! " .. #GetTeamList() .. " teams found", 2, Color3.fromRGB(0, 255, 0))
-    end
-})
-
--- ESP DISTANCE SECTION
 espDistanceSection:Slider({
     Name = "Max Distance",
     Flag = "ESPMaxDistance",
@@ -2987,7 +2747,6 @@ espDistanceSection:Slider({
     end
 })
 
--- CHAMS SECTION
 chamsSection:Toggle({
     Name = "Enable Chams",
     Default = false,
@@ -3053,7 +2812,6 @@ chamsSection:Toggle({
     end
 })
 
--- MOVEMENT SECTION
 movementSection:Toggle({
     Name = "CFrame Speed",
     Default = false,
@@ -3153,7 +2911,6 @@ movementSection:Slider({
     end
 })
 
--- FLY SECTION
 flySection:Toggle({
     Name = "Enable Fly System",
     Default = false,
@@ -3187,7 +2944,6 @@ local flyKeyDD = flySection:Dropdown({
     end
 })
 
--- NOCLIP SECTION
 noclipSection:Toggle({
     Name = "Enable Noclip",
     Default = false,
@@ -3213,7 +2969,6 @@ local noclipKeyDD = noclipSection:Dropdown({
     end
 })
 
--- SPIN SECTION
 spinSection:Toggle({
     Name = "Spin Bot",
     Default = false,
@@ -3237,7 +2992,6 @@ spinSection:Slider({
     end
 })
 
--- SETTINGS PAGE - THEMES
 local ThemesSection = settingsPage:Section({ Name = "Themes", Side = 1 })
 
 do
@@ -3336,7 +3090,6 @@ do
     Library:RefreshThemeList(ThemesListbox)
 end
 
--- SETTINGS PAGE - CONFIGS
 local ConfigsSection = settingsPage:Section({ Name = "Configs", Side = 2 })
 
 do 
@@ -3495,7 +3248,6 @@ local function ToggleTrigger()
     end
 end
 
--- KEYBINDS
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if FlySystem.Enabled and input.KeyCode.Name == FlySystem.flyKey then
@@ -3664,6 +3416,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
+-- MAGNET AIM BINDS CORRIGIDOS
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not MagnetAim.Enabled then return end
@@ -3724,7 +3477,6 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- MAIN LOOPS
 task.spawn(function()
     while task.wait(0.03) do
         if TriggerBot.Enabled and TriggerBot.IsActive then
