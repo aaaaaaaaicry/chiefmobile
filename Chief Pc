@@ -263,7 +263,8 @@ local TriggerBot = {
     WallCheck = false,
     AliveCheck = true,
     IsActive = false,
-    IsHolding = false
+    IsHolding = false,
+    LastClickTime = 0
 }
 
 -- MAGNET AIM CORRIGIDO - SUPORTE A MÚLTIPLOS FANTASMAS
@@ -1699,7 +1700,6 @@ end
 
 local function ClickShoot()
     VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-    task.wait(TriggerBot.Delay / 1000)
     VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 
@@ -3483,8 +3483,12 @@ task.spawn(function()
             local target = GetValidTargetAtMouse()
             if target then
                 if TriggerBot.ShootMode == "click" then
-                    ClickShoot()
-                    task.wait(0.05)
+                    local now = tick()
+                    local clickInterval = math.max(TriggerBot.Delay / 1000, 0.01)
+                    if now - TriggerBot.LastClickTime >= clickInterval then
+                        ClickShoot()
+                        TriggerBot.LastClickTime = now
+                    end
                 else
                     StartHold()
                 end
