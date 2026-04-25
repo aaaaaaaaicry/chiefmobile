@@ -65,6 +65,50 @@ local function GetMaterialEnum(matName)
     return Enum.Material[matName] or Enum.Material.Plastic
 end
 
+-- ========== FUNÇÃO DE HITBOX ALEATÓRIA ==========
+local function GetRandomHitbox(character)
+    if not character then return nil end
+    
+    -- Opções de hitbox disponíveis
+    local hitboxOptions = {"Head", "UpperTorso"}
+    local selected = hitboxOptions[math.random(1, #hitboxOptions)]
+    
+    if selected == "Head" then
+        return character:FindFirstChild("Head")
+    elseif selected == "UpperTorso" then
+        local part = character:FindFirstChild("UpperTorso")
+        if not part then
+            part = character:FindFirstChild("Torso")
+        end
+        return part
+    end
+    return character:FindFirstChild("HumanoidRootPart")
+end
+
+-- Função de hitbox genérica (suporta Random)
+local function GetHitboxPart(character, hitboxName)
+    if not character then return nil end
+    
+    -- Se for Random, chama a função aleatória
+    if hitboxName == "Random" then
+        return GetRandomHitbox(character)
+    end
+    
+    if hitboxName == "Head" then
+        return character:FindFirstChild("Head")
+    elseif hitboxName == "UpperTorso" then
+        local part = character:FindFirstChild("UpperTorso")
+        if not part then
+            part = character:FindFirstChild("Torso")
+        end
+        return part
+    elseif hitboxName == "HumanoidRootPart" then
+        return character:FindFirstChild("HumanoidRootPart")
+    end
+    return nil
+end
+
+-- ========== CHAMS ==========
 local Chams = {
     Enabled = false,
     Material = "ForceField",
@@ -233,12 +277,14 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 
+-- ========== VISUAL FOV ==========
 local VisualFOV = {
     Enabled = false,
     Value = 70,
     OriginalFOV = Camera.FieldOfView
 }
 
+-- ========== AIM ASSIST ==========
 local AimAssist = {
     Enabled = false,
     Key = "MB3",
@@ -254,6 +300,7 @@ local AimAssist = {
     FOVCircleColor = Color3.fromRGB(255, 255, 255)
 }
 
+-- ========== TRIGGER BOT ==========
 local TriggerBot = {
     Enabled = false,
     ToggleKey = "End",
@@ -267,7 +314,7 @@ local TriggerBot = {
     LastClickTime = 0
 }
 
--- MAGNET AIM CORRIGIDO - SUPORTE A MÚLTIPLOS FANTASMAS
+-- ========== MAGNET AIM COM RANDOM HITBOX ==========
 local MagnetAim = {
     Enabled = false,
     Key = "MB1",
@@ -280,10 +327,11 @@ local MagnetAim = {
     Holding = false,
     TeamCheck = false,
     GhostMode = false,
-    CurrentGhostTargets = {},  -- MÚLTIPLOS alvos
-    Hitbox = "Head"
+    CurrentGhostTargets = {},
+    Hitbox = "Head"  -- Pode ser "Head", "UpperTorso", "HumanoidRootPart" ou "Random"
 }
 
+-- ========== RAGE BOT ==========
 local RageBot = {
     Enabled = false,
     Key = "MB2",
@@ -302,6 +350,7 @@ local RageBot = {
     Stabilizer = {x = 0, y = 0}
 }
 
+-- ========== MOVEMENT ==========
 local CFrameSpeed = {
     Enabled = false,
     Speed = 2,
@@ -349,6 +398,7 @@ local JumpPower = {
     Power = 100
 }
 
+-- ========== WORLD ==========
 local World = {
     FogEnabled = false,
     FogEnd = 1000,
@@ -367,6 +417,7 @@ local World = {
     NoShadowEnabled = false
 }
 
+-- ========== ESP ==========
 local workspace = cloneref(game:GetService("Workspace"))
 local run = cloneref(game:GetService("RunService"))
 local http_service = cloneref(game:GetService("HttpService"))
@@ -1174,6 +1225,7 @@ esp.player_removed = players_service.PlayerRemoving:Connect(function(v)
     esp:remove_object(v)
 end)
 
+-- ========== FUNÇÕES AUXILIARES ==========
 local fovLoop = nil
 local fullBrightLoop = nil
 local rainbowLoop = nil
@@ -1382,7 +1434,7 @@ local function GetMousePosition()
     )
 end
 
--- FUNÇÕES CORRIGIDAS DO GHOST MODE
+-- ========== FUNÇÕES DO MAGNET AIM COM RANDOM HITBOX ==========
 local function SetInvisible(char, state)
     if not char then return end
     
@@ -1393,6 +1445,28 @@ local function SetInvisible(char, state)
             v.Transparency = state and 1 or 0
         end
     end
+end
+
+local function GetMagnetHitboxPart(character, hitboxName)
+    if not character then return nil end
+    
+    -- Se for Random, usa a função de hitbox aleatória
+    if hitboxName == "Random" then
+        return GetRandomHitbox(character)
+    end
+    
+    if hitboxName == "Head" then
+        return character:FindFirstChild("Head")
+    elseif hitboxName == "UpperTorso" then
+        local part = character:FindFirstChild("UpperTorso")
+        if not part then
+            part = character:FindFirstChild("Torso")
+        end
+        return part
+    elseif hitboxName == "HumanoidRootPart" then
+        return character:FindFirstChild("HumanoidRootPart")
+    end
+    return character:FindFirstChild("HumanoidRootPart")
 end
 
 local function AddGhostTarget(character)
@@ -1423,23 +1497,6 @@ local function RemoveAllGhosts()
         SetInvisible(target, false)
     end
     MagnetAim.CurrentGhostTargets = {}
-end
-
-local function GetMagnetHitboxPart(character, hitboxName)
-    if not character then return nil end
-    
-    if hitboxName == "Head" then
-        return character:FindFirstChild("Head")
-    elseif hitboxName == "UpperTorso" then
-        local part = character:FindFirstChild("UpperTorso")
-        if not part then
-            part = character:FindFirstChild("Torso")
-        end
-        return part
-    elseif hitboxName == "HumanoidRootPart" then
-        return character:FindFirstChild("HumanoidRootPart")
-    end
-    return character:FindFirstChild("HumanoidRootPart")
 end
 
 local function GetClosestPlayerToCursor()
@@ -1524,6 +1581,7 @@ end
 
 CreateMagnetCircle()
 
+-- ========== FUNÇÕES DO AIM ASSIST ==========
 local function CreateAimFOVCircle()
     if AimAssist.FOVCircle then
         AimAssist.FOVCircle:Remove()
@@ -1550,6 +1608,7 @@ local function CreateRageFOVCircle()
     RageBot.FOVCircle.Visible = RageBot.ShowFOVCircle and RageBot.Enabled
 end
 
+-- ========== FUNÇÕES DO MUNDO ==========
 local function GetAtmosphere()
     return Lighting:FindFirstChildOfClass("Atmosphere")
 end
@@ -1654,25 +1713,11 @@ local function StopRainbow()
     end
 end
 
+-- ========== FUNÇÕES DO TRIGGER BOT ==========
 local function IsAlive(char)
     if not TriggerBot.AliveCheck then return true end
     local humanoid = char and char:FindFirstChildOfClass("Humanoid")
     return humanoid and humanoid.Health > 0
-end
-
-local function GetHitboxPart(character, hitboxName)
-    if not character then return nil end
-    
-    if hitboxName == "Head" then
-        return character:FindFirstChild("Head")
-    elseif hitboxName == "UpperTorso" then
-        local part = character:FindFirstChild("UpperTorso")
-        if not part then
-            part = character:FindFirstChild("Torso")
-        end
-        return part
-    end
-    return nil
 end
 
 local function CanSeeTarget(origin, targetPart)
@@ -1754,6 +1799,7 @@ local function GetValidTargetAtMouse()
     return closestPart
 end
 
+-- ========== FUNÇÕES DO AIM ASSIST ==========
 local function GetBestTargetInFOV()
     local mousePos = UserInputService:GetMouseLocation()
     local cameraPos = Camera.CFrame.Position
@@ -1819,6 +1865,7 @@ local function UpdateLockedPart()
     end
 end
 
+-- ========== FUNÇÕES DO RAGE BOT ==========
 local function GetRageTargetInFOV()
     local mousePos = UserInputService:GetMouseLocation()
     local cameraPos = Camera.CFrame.Position
@@ -1939,6 +1986,7 @@ local function RageAimAtTarget()
     end
 end
 
+-- ========== FUNÇÕES DE MOVIMENTO ==========
 local function StartCFrameSpeed()
     if not CFrameSpeed.Enabled or not CFrameSpeed.Holding then return end
     
@@ -1989,6 +2037,7 @@ local function RemoveJumpPower()
     end
 end
 
+-- ========== GUI ==========
 visualFOVSection:Toggle({
     Name = "Enable Visual FOV",
     Default = false,
@@ -2099,7 +2148,7 @@ local aimKeyDD = aimSection:Dropdown({
 local hitboxDD = aimSection:Dropdown({
     Name = "Hitbox",
     Flag = "Hitbox",
-    Items = {"Head", "UpperTorso"},
+    Items = {"Head", "UpperTorso", "Random"},
     Default = "Head",
     Callback = function(v)
         AimAssist.Hitbox = v
@@ -2211,6 +2260,7 @@ triggerSection:Toggle({
     end
 })
 
+-- ========== MAGNET AIM SECTION COM RANDOM HITBOX ==========
 magnetSection:Toggle({
     Name = "Enable Magnet Aim",
     Default = false,
@@ -2252,10 +2302,11 @@ local magnetKeyDD = magnetSection:Dropdown({
     end
 })
 
+-- DROPDOWN DO MAGNET COM RANDOM
 local magnetHitboxDD = magnetSection:Dropdown({
     Name = "Hitbox Part",
     Flag = "MagnetHitbox",
-    Items = {"Head", "UpperTorso", "HumanoidRootPart"},
+    Items = {"Head", "UpperTorso", "HumanoidRootPart", "Random"},
     Default = "Head",
     Callback = function(v)
         MagnetAim.Hitbox = v
@@ -2394,7 +2445,7 @@ local rageKeyDD = rageSection:Dropdown({
 local rageHitboxDD = rageSection:Dropdown({
     Name = "Hitbox",
     Flag = "RageHitbox",
-    Items = {"Head", "UpperTorso"},
+    Items = {"Head", "UpperTorso", "Random"},
     Default = "Head",
     Callback = function(v)
         RageBot.Hitbox = v
@@ -3239,6 +3290,7 @@ end
 CreateAimFOVCircle()
 CreateRageFOVCircle()
 
+-- ========== BINDS ==========
 local function ToggleTrigger()
     if TriggerBot.Enabled then
         TriggerBot.IsActive = not TriggerBot.IsActive
@@ -3416,7 +3468,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- MAGNET AIM BINDS CORRIGIDOS
+-- ========== MAGNET AIM BINDS ==========
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not MagnetAim.Enabled then return end
@@ -3477,6 +3529,7 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
+-- ========== LOOPS PRINCIPAIS ==========
 task.spawn(function()
     while task.wait(0.03) do
         if TriggerBot.Enabled and TriggerBot.IsActive then
@@ -3525,6 +3578,10 @@ RunService.RenderStepped:Connect(function()
     if MagnetAim.Circle and MagnetAim.CircleVisible and MagnetAim.Enabled then
         local mousePos = UserInputService:GetMouseLocation()
         MagnetAim.Circle.Position = Vector2.new(mousePos.X, mousePos.Y)
+        MagnetAim.Circle.Visible = true
+        MagnetAim.Circle.Radius = MagnetAim.Range
+    elseif MagnetAim.Circle then
+        MagnetAim.Circle.Visible = false
     end
     
     if RageBot.Enabled then
