@@ -2278,7 +2278,7 @@ visualFOVSection:Toggle({
 visualFOVSection:Slider({
     Name = "Visual FOV Value",
     Flag = "VisualFOVValue",
-    Min = 50,
+    Min = 10,
     Max = 120,
     Default = VisualFOV.Value,
     Callback = function(v)
@@ -2395,7 +2395,7 @@ aimSection:Slider({
 aimSection:Slider({
     Name = "FOV",
     Flag = "AimFOV",
-    Min = 50,
+    Min = 10,
     Max = 500,
     Default = 200,
     Callback = function(v)
@@ -2537,7 +2537,7 @@ local magnetHitboxDD = magnetSection:Dropdown({
 magnetSection:Slider({
     Name = "FOV",
     Flag = "MagnetRange",
-    Min = 50,
+    Min = 10,
     Max = 500,
     Default = 100,
     Callback = function(v)
@@ -2692,7 +2692,7 @@ local rageHitboxDD = rageSection:Dropdown({
 rageSection:Slider({
     Name = "FOV",
     Flag = "RageFOV",
-    Min = 50,
+    Min = 10,
     Max = 500,
     Default = 100,
     Callback = function(v)
