@@ -32,7 +32,8 @@ local worldSection = worldPage:Section({Name = "World Settings", Side = 1})
 local espMainSection = visualPage:Section({Name = "ESP Main", Side = 1})
 local espColorsSection = visualPage:Section({Name = "ESP Colors", Side = 2})
 local espDistanceSection = visualPage:Section({Name = "ESP Distance", Side = 2})
-local chamsSection = visualPage:Section({Name = "Chams", Side = 1})
+local chamsNormalSection = visualPage:Section({Name = "Chams Normal", Side = 1})
+local chamsInteligenteSection = visualPage:Section({Name = "Chams Inteligente", Side = 2})
 local visualFOVSection = visualPage:Section({Name = "FOV", Side = 2})
 
 local movementSection = movementPage:Section({Name = "Movement", Side = 1})
@@ -51,6 +52,7 @@ local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 
+-- ========== MATERIAIS DISPONÍVEIS ==========
 local AllMaterials = {
     "Plastic", "Wood", "Slate", "Concrete", "Brick", "Neon", "Glass", 
     "ForceField", "Metal", "SmoothPlastic", "DiamondPlate", "CorrodedMetal", 
@@ -65,7 +67,323 @@ local function GetMaterialEnum(matName)
     return Enum.Material[matName] or Enum.Material.Plastic
 end
 
--- ========== FUNÇÃO DE HITBOX ALEATÓRIA ==========
+-- ========== CHAMS NORMAL (MATERIAL + WALLHACK) ==========
+local ChamsNormal = {
+    Enabled = false,
+    Material = "ForceField",
+    Transparency = 0.3,
+    Color = Color3.fromRGB(255, 255, 255),
+    Wallhack = true,
+    ChamsObjects = {}
+}
+
+local function ApplyChamsNormal(character)
+    if not character or not ChamsNormal.Enabled then return end
+    
+    local chamsData = {
+        originalMaterials = {},
+        originalTransparency = {},
+        originalColor = {},
+        highlights = {}
+    }
+    
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            chamsData.originalMaterials[part] = part.Material
+            chamsData.originalTransparency[part] = part.Transparency
+            chamsData.originalColor[part] = part.Color
+            
+            part.Material = GetMaterialEnum(ChamsNormal.Material)
+            part.Transparency = 0
+            part.LocalTransparencyModifier = ChamsNormal.Transparency
+            part.Color = ChamsNormal.Color
+            
+            if ChamsNormal.Wallhack then
+                local highlight = Instance.new("Highlight")
+                highlight.FillTransparency = math.clamp(ChamsNormal.Transparency, 0.2, 0.8)
+                highlight.OutlineTransparency = 1
+                highlight.FillColor = ChamsNormal.Color
+                highlight.Parent = part
+                table.insert(chamsData.highlights, highlight)
+            end
+        end
+    end
+    
+    ChamsNormal.ChamsObjects[character] = chamsData
+end
+
+local function RemoveChamsNormal(character)
+    local chamsData = ChamsNormal.ChamsObjects[character]
+    if chamsData then
+        for part, originalMat in pairs(chamsData.originalMaterials) do
+            if part and part.Parent then
+                part.Material = originalMat
+                part.Transparency = chamsData.originalTransparency[part] or 0
+                part.LocalTransparencyModifier = 0
+                part.Color = chamsData.originalColor[part] or Color3.fromRGB(255, 255, 255)
+            end
+        end
+        for _, highlight in pairs(chamsData.highlights) do
+            if highlight then highlight:Destroy() end
+        end
+        ChamsNormal.ChamsObjects[character] = nil
+    end
+end
+
+local function UpdateChamsNormalTransparency()
+    for _, data in pairs(ChamsNormal.ChamsObjects) do
+        for part, _ in pairs(data.originalMaterials) do
+            if part and part.Parent then
+                part.LocalTransparencyModifier = ChamsNormal.Transparency
+            end
+        end
+        for _, highlight in pairs(data.highlights) do
+            if highlight then
+                highlight.FillTransparency = math.clamp(ChamsNormal.Transparency, 0.2, 0.8)
+            end
+        end
+    end
+end
+
+local function UpdateChamsNormalColor()
+    for _, data in pairs(ChamsNormal.ChamsObjects) do
+        for part, _ in pairs(data.originalMaterials) do
+            if part and part.Parent then
+                part.Color = ChamsNormal.Color
+            end
+        end
+        for _, highlight in pairs(data.highlights) do
+            if highlight then
+                highlight.FillColor = ChamsNormal.Color
+            end
+        end
+    end
+end
+
+-- ========== CHAMS INTELIGENTE (VERDE/VEMELHO POR VISIBILIDADE) ==========
+local ChamsInteligente = {
+    Enabled = false,
+    Transparency = 0.35,
+    VisibleColor = Color3.fromRGB(0, 200, 100),   -- Verde
+    HiddenColor = Color3.fromRGB(220, 60, 60),    -- Vermelho
+    ActiveHighlights = {}
+}
+
+-- Cache para raycast
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+raycastParams.IgnoreWater = true
+
+local visibilidadeCache = {}
+local ultimoCacheCheck = {}
+
+local function isParteVisivel(parte)
+    if not parte or not parte.Parent then
+        return false
+    end
+    
+    local agora = tick()
+    if visibilidadeCache[parte] and (ultimoCacheCheck[parte] or 0) > agora - 0.05 then
+        return visibilidadeCache[parte]
+    end
+    
+    local origem = Camera.CFrame.Position
+    local direcao = parte.Position - origem
+    local distancia = direcao.Magnitude
+    
+    if distancia < 0.5 then
+        visibilidadeCache[parte] = true
+        ultimoCacheCheck[parte] = agora
+        return true
+    end
+    
+    direcao = direcao.Unit * distancia
+    
+    local ignorar = {}
+    if player.Character then
+        ignorar = {player.Character}
+    end
+    raycastParams.FilterDescendantsInstances = ignorar
+    
+    local resultado = workspace:Raycast(origem, direcao, raycastParams)
+    
+    if not resultado then
+        visibilidadeCache[parte] = true
+        ultimoCacheCheck[parte] = agora
+        return true
+    end
+    
+    local personagemAtingido = resultado.Instance:FindFirstAncestorOfClass("Model")
+    local personagemAlvo = parte:FindFirstAncestorOfClass("Model")
+    
+    local visivel = personagemAtingido == personagemAlvo
+    
+    visibilidadeCache[parte] = visivel
+    ultimoCacheCheck[parte] = agora
+    
+    return visivel
+end
+
+local function criarHighlightInteligente(parte)
+    if not parte or not parte.Parent then
+        return nil
+    end
+    
+    local highlightExistente = parte:FindFirstChild("ChamsInteligente")
+    if highlightExistente then
+        return highlightExistente
+    end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ChamsInteligente"
+    highlight.FillTransparency = ChamsInteligente.Transparency
+    highlight.OutlineTransparency = 1
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Adornee = parte
+    highlight.Parent = parte
+    
+    return highlight
+end
+
+local function atualizarCorHighlight(highlight, parte)
+    if not highlight or not parte then return end
+    
+    local visivel = isParteVisivel(parte)
+    
+    if visivel then
+        highlight.FillColor = ChamsInteligente.VisibleColor
+    else
+        highlight.FillColor = ChamsInteligente.HiddenColor
+    end
+end
+
+local function aplicarChamsInteligente(personagem)
+    if not personagem or personagem == player.Character then
+        return
+    end
+    
+    local dono = Players:GetPlayerFromCharacter(personagem)
+    if not dono or dono == player then
+        return
+    end
+    
+    if not ChamsInteligente.ActiveHighlights[personagem] then
+        ChamsInteligente.ActiveHighlights[personagem] = {}
+    end
+    
+    local partesR15 = {"Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg"}
+    local partesR6 = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+    
+    local partesEncontradas = {}
+    
+    for _, nomeParte in ipairs(partesR15) do
+        local parte = personagem:FindFirstChild(nomeParte)
+        if parte and parte:IsA("BasePart") then
+            table.insert(partesEncontradas, parte)
+        end
+    end
+    
+    if #partesEncontradas == 0 then
+        for _, nomeParte in ipairs(partesR6) do
+            local parte = personagem:FindFirstChild(nomeParte)
+            if parte and parte:IsA("BasePart") then
+                table.insert(partesEncontradas, parte)
+            end
+        end
+    end
+    
+    for _, parte in ipairs(partesEncontradas) do
+        if parte and parte.Parent then
+            if not ChamsInteligente.ActiveHighlights[personagem][parte] then
+                local highlight = criarHighlightInteligente(parte)
+                if highlight then
+                    ChamsInteligente.ActiveHighlights[personagem][parte] = highlight
+                    atualizarCorHighlight(highlight, parte)
+                    highlight.Enabled = ChamsInteligente.Enabled
+                end
+            end
+        end
+    end
+end
+
+local function removerChamsInteligente(personagem)
+    if ChamsInteligente.ActiveHighlights[personagem] then
+        for parte, highlight in pairs(ChamsInteligente.ActiveHighlights[personagem]) do
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+        ChamsInteligente.ActiveHighlights[personagem] = nil
+    end
+end
+
+local function atualizarTransparenciaInteligente()
+    for personagem, partes in pairs(ChamsInteligente.ActiveHighlights) do
+        for parte, highlight in pairs(partes) do
+            if highlight then
+                highlight.FillTransparency = ChamsInteligente.Transparency
+            end
+        end
+    end
+end
+
+local function atualizarCoresInteligente()
+    for personagem, partes in pairs(ChamsInteligente.ActiveHighlights) do
+        for parte, highlight in pairs(partes) do
+            if parte and parte.Parent and highlight then
+                local visivel = isParteVisivel(parte)
+                if visivel then
+                    highlight.FillColor = ChamsInteligente.VisibleColor
+                else
+                    highlight.FillColor = ChamsInteligente.HiddenColor
+                end
+            end
+        end
+    end
+end
+
+local function toggleChamsInteligente()
+    for personagem, partes in pairs(ChamsInteligente.ActiveHighlights) do
+        for parte, highlight in pairs(partes) do
+            if highlight then
+                highlight.Enabled = ChamsInteligente.Enabled
+            end
+        end
+    end
+end
+
+local function atualizarTodosChamsInteligente()
+    for _, outroJogador in ipairs(Players:GetPlayers()) do
+        if outroJogador ~= player and outroJogador.Character then
+            if ChamsInteligente.Enabled then
+                aplicarChamsInteligente(outroJogador.Character)
+            else
+                removerChamsInteligente(outroJogador.Character)
+            end
+        end
+    end
+end
+
+-- ========== FUNÇÃO PARA ATUALIZAR TODOS OS CHAMS ==========
+local function RefreshAllEffects()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character then
+            -- Chams Normal
+            RemoveChamsNormal(plr.Character)
+            if ChamsNormal.Enabled then
+                ApplyChamsNormal(plr.Character)
+            end
+            
+            -- Chams Inteligente
+            removerChamsInteligente(plr.Character)
+            if ChamsInteligente.Enabled then
+                aplicarChamsInteligente(plr.Character)
+            end
+        end
+    end
+end
+
+-- ========== FUNÇÕES AUXILIARES ==========
 local function GetRandomHitbox(character)
     if not character then return nil end
     
@@ -104,175 +422,6 @@ local function GetHitboxPart(character, hitboxName)
     end
     return nil
 end
-
--- ========== CHAMS ==========
-local Chams = {
-    Enabled = false,
-    Material = "ForceField",
-    Transparency = 0.3,
-    Color = Color3.fromRGB(255, 255, 255),
-    Wallhack = true,
-    MiniMode = false,
-    ChamsObjects = {}
-}
-
-local MiniChams = {
-    MiniChamsObjects = {}
-}
-
-local function ApplyChamsToCharacter(character)
-    if not character or not Chams.Enabled then return end
-    
-    local chamsData = {
-        originalMaterials = {},
-        originalTransparency = {},
-        originalColor = {},
-        highlights = {}
-    }
-    
-    for _, part in pairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-            chamsData.originalMaterials[part] = part.Material
-            chamsData.originalTransparency[part] = part.Transparency
-            chamsData.originalColor[part] = part.Color
-            
-            part.Material = GetMaterialEnum(Chams.Material)
-            part.Transparency = 0
-            part.LocalTransparencyModifier = Chams.Transparency
-            part.Color = Chams.Color
-            
-            if Chams.Wallhack then
-                local highlight = Instance.new("Highlight")
-                highlight.FillTransparency = math.clamp(Chams.Transparency, 0.2, 0.8)
-                highlight.OutlineTransparency = math.clamp(1 - Chams.Transparency, 0, 1)
-                highlight.OutlineColor = Chams.Color
-                highlight.FillColor = Chams.Color
-                highlight.Parent = part
-                table.insert(chamsData.highlights, highlight)
-            end
-        end
-    end
-    
-    Chams.ChamsObjects[character] = chamsData
-end
-
-local function ApplyMiniChamsToCharacter(character)
-    if not character or not Chams.Enabled or not Chams.MiniMode then return end
-    
-    local miniData = {
-        highlights = {}
-    }
-    
-    for _, part in pairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if Chams.Wallhack then
-                local highlight = Instance.new("Highlight")
-                highlight.FillTransparency = math.clamp(Chams.Transparency, 0.2, 0.8)
-                highlight.OutlineTransparency = 1
-                highlight.FillColor = part.Color
-                highlight.Parent = part
-                table.insert(miniData.highlights, highlight)
-            end
-        end
-    end
-    
-    MiniChams.MiniChamsObjects[character] = miniData
-end
-
-local function RemoveChamsFromCharacter(character)
-    local chamsData = Chams.ChamsObjects[character]
-    if chamsData then
-        for part, originalMat in pairs(chamsData.originalMaterials) do
-            if part and part.Parent then
-                part.Material = originalMat
-                part.Transparency = chamsData.originalTransparency[part] or 0
-                part.LocalTransparencyModifier = 0
-                part.Color = chamsData.originalColor[part] or Color3.fromRGB(255, 255, 255)
-            end
-        end
-        for _, highlight in pairs(chamsData.highlights) do
-            if highlight then highlight:Destroy() end
-        end
-        Chams.ChamsObjects[character] = nil
-    end
-end
-
-local function UpdateChamsTransparency()
-    for _, data in pairs(Chams.ChamsObjects) do
-        for part, _ in pairs(data.originalMaterials) do
-            if part and part.Parent then
-                part.Transparency = 0
-                part.LocalTransparencyModifier = Chams.Transparency
-            end
-        end
-
-        for _, highlight in pairs(data.highlights) do
-            if highlight and highlight.Parent then
-                highlight.FillTransparency = math.clamp(Chams.Transparency, 0.2, 0.8)
-                highlight.OutlineTransparency = math.clamp(1 - Chams.Transparency, 0, 1)
-            end
-        end
-    end
-
-    for _, data in pairs(MiniChams.MiniChamsObjects) do
-        for _, highlight in pairs(data.highlights) do
-            if highlight and highlight.Parent then
-                highlight.FillTransparency = math.clamp(Chams.Transparency, 0.2, 0.8)
-            end
-        end
-    end
-end
-
-local function RemoveMiniChamsFromCharacter(character)
-    local miniData = MiniChams.MiniChamsObjects[character]
-    if miniData then
-        for _, highlight in pairs(miniData.highlights) do
-            if highlight then
-                highlight:Destroy()
-            end
-        end
-        MiniChams.MiniChamsObjects[character] = nil
-    end
-end
-
-local function RefreshAllEffects()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and plr.Character then
-            RemoveChamsFromCharacter(plr.Character)
-            RemoveMiniChamsFromCharacter(plr.Character)
-            
-            if Chams.Enabled then
-                if Chams.MiniMode then
-                    ApplyMiniChamsToCharacter(plr.Character)
-                else
-                    ApplyChamsToCharacter(plr.Character)
-                end
-            end
-        end
-    end
-end
-
-Players.PlayerAdded:Connect(function(plr)
-    plr.CharacterAdded:Connect(function(character)
-        task.wait(0.5)
-        if plr ~= player then
-            if Chams.Enabled then
-                if Chams.MiniMode then
-                    ApplyMiniChamsToCharacter(character)
-                else
-                    ApplyChamsToCharacter(character)
-                end
-            end
-        end
-    end)
-end)
-
-Players.PlayerRemoving:Connect(function(plr)
-    if plr.Character then
-        RemoveChamsFromCharacter(plr.Character)
-        RemoveMiniChamsFromCharacter(plr.Character)
-    end
-end)
 
 -- ========== VISUAL FOV ==========
 local VisualFOV = {
@@ -328,7 +477,7 @@ local MagnetAim = {
     Hitbox = "Head"
 }
 
--- ========== RAGE BOT COM WHILE AIMING (OPÇÃO SEPARADA) ==========
+-- ========== RAGE BOT ==========
 local RageBot = {
     Enabled = false,
     Key = "MB2",
@@ -343,11 +492,9 @@ local RageBot = {
     FOVCircleColor = Color3.fromRGB(255, 255, 255),
     LockedCharacter = nil,
     LockedPart = nil,
-    -- WHILE AIMING (OPÇÃO SEPARADA)
-    WhileAiming = false,  -- TRUE = só ativa quando mirar
+    WhileAiming = false,
 }
 
--- Função que verifica se está mirando (botão direito)
 local function IsAiming()
     return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 end
@@ -419,7 +566,7 @@ local World = {
     NoShadowEnabled = false
 }
 
--- ========== ESP (CORRIGIDO) ==========
+-- ========== ESP ==========
 local workspace = cloneref(game:GetService("Workspace"))
 local run = cloneref(game:GetService("RunService"))
 local http_service = cloneref(game:GetService("HttpService"))
@@ -1225,11 +1372,59 @@ esp.player_removed = players_service.PlayerRemoving:Connect(function(v)
     esp:remove_object(v)
 end)
 
--- ========== FUNÇÕES AUXILIARES ==========
-local fovLoop = nil
-local fullBrightLoop = nil
-local rainbowLoop = nil
+-- ========== EVENTOS PARA CHAMS ==========
+Players.PlayerAdded:Connect(function(novoJogador)
+    if novoJogador ~= player then
+        novoJogador.CharacterAdded:Connect(function(character)
+            task.wait(0.1)
+            if ChamsNormal.Enabled then
+                ApplyChamsNormal(character)
+            end
+            if ChamsInteligente.Enabled then
+                aplicarChamsInteligente(character)
+            end
+        end)
+    end
+end)
 
+for _, outroJogador in ipairs(Players:GetPlayers()) do
+    if outroJogador ~= player then
+        outroJogador.CharacterAdded:Connect(function(character)
+            task.wait(0.1)
+            if ChamsNormal.Enabled then
+                ApplyChamsNormal(character)
+            end
+            if ChamsInteligente.Enabled then
+                aplicarChamsInteligente(character)
+            end
+        end)
+        if outroJogador.Character then
+            task.wait(0.1)
+            if ChamsNormal.Enabled then
+                ApplyChamsNormal(outroJogador.Character)
+            end
+            if ChamsInteligente.Enabled then
+                aplicarChamsInteligente(outroJogador.Character)
+            end
+        end
+    end
+end
+
+-- Loop de atualização do Chams Inteligente
+local ultimoUpdate = tick()
+local INTERVALO_UPDATE = 0.066
+
+RunService.RenderStepped:Connect(function()
+    local agora = tick()
+    if agora - ultimoUpdate >= INTERVALO_UPDATE then
+        if ChamsInteligente.Enabled then
+            atualizarCoresInteligente()
+        end
+        ultimoUpdate = agora
+    end
+end)
+
+-- ========== FUNÇÕES AUXILIARES ==========
 local function ApplyWalkspeedNormal()
     local char = player.Character
     if not char then return end
@@ -1636,6 +1831,7 @@ local function ResetFog()
     end
 end
 
+local fullBrightLoop = nil
 local function StartFullBrightLoop()
     if fullBrightLoop then
         fullBrightLoop:Disconnect()
@@ -1680,6 +1876,7 @@ local function SetNoShadow(enabled)
     end
 end
 
+local rainbowLoop = nil
 local function StartRainbow()
     if rainbowLoop then
         rainbowLoop:Disconnect()
@@ -1984,24 +2181,19 @@ local function RageAimAtTarget()
     end
 end
 
--- Função que decide se o Rage deve ativar (com While Aiming)
 local function ShouldRage()
     if not RageBot.Enabled then 
         return false 
     end
     
-    -- SE WHILE AIMING ESTIVER ATIVADO: só rage se estiver mirando (botão direito)
     if RageBot.WhileAiming then
-        -- Se NÃO está mirando, NUNCA ativa
         if not IsAiming() then
-            -- Limpa o lock se tiver
             if RageBot.LockedCharacter then
                 ResetRageLock()
             end
             return false
         end
         
-        -- Está mirando! Tenta achar alvo se não tiver
         if not RageBot.LockedCharacter then
             LockRageTarget()
         end
@@ -2009,7 +2201,6 @@ local function ShouldRage()
         return RageBot.LockedCharacter ~= nil
     end
     
-    -- MODO NORMAL (sem while aiming)
     if RageBot.Mode == "hold" then
         return RageBot.LockedCharacter ~= nil
     else
@@ -2447,7 +2638,6 @@ rageFOVColorLabel:Colorpicker({
     end
 })
 
--- WHILE AIMING TOGGLE (OPÇÃO SEPARADA)
 rageSection:Toggle({
     Name = "While Aiming",
     Default = false,
@@ -2845,69 +3035,112 @@ espDistanceSection:Slider({
     end
 })
 
--- ========== CHAMS SECTION ==========
-chamsSection:Toggle({
-    Name = "Enable Chams",
+-- ========== CHAMS NORMAL SECTION ==========
+chamsNormalSection:Toggle({
+    Name = "Enable Chams Normal",
     Default = false,
-    Flag = "ChamsEnabled",
+    Flag = "ChamsNormalEnabled",
     Callback = function(v)
-        Chams.Enabled = v
+        ChamsNormal.Enabled = v
         RefreshAllEffects()
     end
 })
 
-local chamsMaterialDD = chamsSection:Dropdown({
+local chamsMaterialDD = chamsNormalSection:Dropdown({
     Name = "Material",
     Flag = "ChamsMaterial",
     Items = AllMaterials,
     Default = "ForceField",
     Callback = function(v)
-        Chams.Material = v
+        ChamsNormal.Material = v
         RefreshAllEffects()
     end
 })
 
-chamsSection:Slider({
+chamsNormalSection:Slider({
     Name = "Transparency",
-    Flag = "ChamsTransparency",
+    Flag = "ChamsNormalTransparency",
     Min = 0,
     Max = 1,
-    Default = 0.5,
+    Default = 0.3,
     Decimals = 2,
     Callback = function(v)
-        Chams.Transparency = v
-        UpdateChamsTransparency()
+        ChamsNormal.Transparency = v
+        UpdateChamsNormalTransparency()
     end
 })
 
-local chamsColorLabel = chamsSection:Label("Chams Color", "Left")
+local chamsColorLabel = chamsNormalSection:Label("Chams Color", "Left")
 chamsColorLabel:Colorpicker({
     Name = "Chams Color",
-    Flag = "ChamsColor",
-    Default = Chams.Color,
+    Flag = "ChamsNormalColor",
+    Default = ChamsNormal.Color,
     Callback = function(c, a)
-        Chams.Color = c
-        RefreshAllEffects()
+        ChamsNormal.Color = c
+        UpdateChamsNormalColor()
     end
 })
 
-chamsSection:Toggle({
+chamsNormalSection:Toggle({
     Name = "Wallhack",
     Default = true,
     Flag = "ChamsWallhack",
     Callback = function(v)
-        Chams.Wallhack = v
+        ChamsNormal.Wallhack = v
         RefreshAllEffects()
     end
 })
 
-chamsSection:Toggle({
-    Name = "Mini Chams Mode",
+-- ========== CHAMS INTELIGENTE SECTION ==========
+chamsInteligenteSection:Toggle({
+    Name = "Enable Chams Inteligente",
     Default = false,
-    Flag = "ChamsMiniMode",
+    Flag = "ChamsInteligenteEnabled",
     Callback = function(v)
-        Chams.MiniMode = v
-        RefreshAllEffects()
+        ChamsInteligente.Enabled = v
+        if v then
+            atualizarTodosChamsInteligente()
+        else
+            for personagem, _ in pairs(ChamsInteligente.ActiveHighlights) do
+                removerChamsInteligente(personagem)
+            end
+        end
+        toggleChamsInteligente()
+    end
+})
+
+chamsInteligenteSection:Slider({
+    Name = "Transparência",
+    Flag = "ChamsInteligenteTransparency",
+    Min = 0.1,
+    Max = 0.8,
+    Default = 0.35,
+    Decimals = 2,
+    Callback = function(v)
+        ChamsInteligente.Transparency = v
+        atualizarTransparenciaInteligente()
+    end
+})
+
+local chamsVisibleColorLabel = chamsInteligenteSection:Label("Cor Visível (Verde)", "Left")
+chamsVisibleColorLabel:Colorpicker({
+    Name = "Cor Visível",
+    Flag = "ChamsVisibleColor",
+    Default = ChamsInteligente.VisibleColor,
+    Callback = function(c, a)
+        ChamsInteligente.VisibleColor = c
+        atualizarCoresInteligente()
+    end
+})
+
+local chamsHiddenColorLabel = chamsInteligenteSection:Label("Cor Oculta (Vermelho)", "Left")
+chamsHiddenColorLabel:Colorpicker({
+    Name = "Cor Oculta",
+    Flag = "ChamsHiddenColor",
+    Default = ChamsInteligente.HiddenColor,
+    Callback = function(c, a)
+        ChamsInteligente.HiddenColor = c
+        atualizarCoresInteligente()
     end
 })
 
@@ -3316,9 +3549,6 @@ do
         if RageBot.FOVCircle then
             RageBot.FOVCircle:Remove()
         end
-        if fovLoop then
-            fovLoop:Disconnect()
-        end
         if fullBrightLoop then
             fullBrightLoop:Disconnect()
         end
@@ -3327,8 +3557,8 @@ do
         end
         for _, plr in pairs(Players:GetPlayers()) do
             if plr.Character then
-                RemoveChamsFromCharacter(plr.Character)
-                RemoveMiniChamsFromCharacter(plr.Character)
+                RemoveChamsNormal(plr.Character)
+                removerChamsInteligente(plr.Character)
             end
         end
         esp:unload()
@@ -3435,11 +3665,11 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- Rage Bot Binds (Modo Normal - sem While Aiming)
+-- Rage Bot Binds
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not RageBot.Enabled then return end
-    if RageBot.WhileAiming then return end  -- Se while aiming estiver ligado, ignora
+    if RageBot.WhileAiming then return end
     
     local isKeyMatch = false
     
@@ -3640,7 +3870,7 @@ RunService.RenderStepped:Connect(function()
         MagnetAim.Circle.Visible = false
     end
     
-    -- Rage Bot (agora com While Aiming)
+    -- Rage Bot
     if RageBot.Enabled then
         local shouldRage = ShouldRage()
         
